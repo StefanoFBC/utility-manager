@@ -772,7 +772,14 @@ const UTILITY_META = {
 
 // ─── UTILITY COMPONENTS ───────────────────────────────────────────────────────
 
-const fmt = (n, dec = 0) => n != null ? n.toLocaleString("it-IT", { minimumFractionDigits: dec, maximumFractionDigits: dec }) : "—";
+const fmt = (n, dec = 0) => {
+ if (n == null) return "—";
+ const fixed = Math.abs(n).toFixed(dec);
+ const [intPart, decPart] = fixed.split(".");
+ const withDots = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+ const sign = n < 0 ? "-" : "";
+ return decPart !== undefined ? `${sign}${withDots},${decPart}` : `${sign}${withDots}`;
+};
 const fmtEuro = (n, dec = 2) => n != null ? `€${fmt(n, dec)}` : "—";
 const fmtPct = (n) => n != null ? `${n >= 0 ? "+" : ""}${fmt(n, 1)}%` : "—";
 
@@ -959,8 +966,8 @@ function OverviewDashboard() {
  <div>
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginBottom: 24 }}>
  <KPICard label={`Spesa Totale ${companyName}`} value={fmtEuro(grandTotal, 0)} color={C.accent} change={-3.2} sub="vs anno precedente" />
- <KPICard label="Energia Elettrica" value={fmtEuro(totalEnergy, 0)} color={C.energy} sub={`${(totalEnergy/grandTotal*100).toFixed(1)}% del totale`} />
- <KPICard label="Gas Naturale" value={fmtEuro(totalGas, 0)} color={C.gas} sub={`${(totalGas/grandTotal*100).toFixed(1)}%`} />
+ <KPICard label="Energia Elettrica" value={fmtEuro(totalEnergy, 0)} color={C.energy} sub={`${fmt(totalEnergy/grandTotal*100, 1)}% del totale`} />
+ <KPICard label="Gas Naturale" value={fmtEuro(totalGas, 0)} color={C.gas} sub={`${fmt(totalGas/grandTotal*100, 1)}%`} />
  <KPICard label="Telefonia Mobile" value={fmtEuro(totalMobile, 0)} color={C.mobile} sub={`${mobileLines.length} linee attive`} />
  <KPICard label="Telefonia Fissa" value={fmtEuro(totalFixed, 0)} color={C.fixed} sub={`${fixedLines.length} linee`} />
  <KPICard label="Connettività" value={fmtEuro(totalConn, 0)} color={C.conn} sub={`${connectivity.length} collegamenti`} />
@@ -1141,11 +1148,11 @@ function EnergyPODAnalysis() {
 
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 20 }}>
  <KPICard label="Consumo Annuo" value={`${fmt(pod.totConsumo)} kWh`} color={C.energy} />
- <KPICard label="Costo Unitario" value={`€${pod.costoUnit.toFixed(4)}/kWh`} color={C.energyLight} />
+ <KPICard label="Costo Unitario" value={`€${pod.costoUnit.toLocaleString("it-IT", {minimumFractionDigits:4, maximumFractionDigits:4})}/kWh`} color={C.energyLight} />
  <KPICard label="Totale Fatturato" value={fmtEuro(pod.totFattura, 0)} color={C.accent} />
  <KPICard label="Potenza Max Media" value={`${pod.avgPowerMax} kW`} color={C.accentLight} sub={`Contr.: ${pod.power} kW`} />
  <KPICard label="Conguagli" value={fmtEuro(pod.totConguagli, 0)} color={pod.totConguagli > 0 ? C.danger : C.success} />
- <KPICard label="% Dati Stimati" value={`${pod.pctEstimated.toFixed(0)}%`} color={pod.pctEstimated > 20 ? C.warn : C.success} warning={pod.pctEstimated > 20} />
+ <KPICard label="% Dati Stimati" value={`${fmt(pod.pctEstimated, 0)}%`} color={pod.pctEstimated > 20 ? C.warn : C.success} warning={pod.pctEstimated > 20} />
  </div>
 
  {/* Anagrafica */}
@@ -1233,7 +1240,7 @@ function EnergyPODAnalysis() {
  <KPICard label="POD Totali" value={PODS.length} color={C.energy} />
  <KPICard label="Consumo Totale Annuo" value={`${fmt(totalConsumo)} kWh`} color={C.energyLight} />
  <KPICard label="Spesa Totale Annua" value={fmtEuro(totalFattura, 0)} color={C.accent} />
- <KPICard label="Costo Medio" value={`€${avgCostoUnit.toFixed(4)}/kWh`} color={C.success} />
+ <KPICard label="Costo Medio" value={`€${avgCostoUnit.toLocaleString("it-IT", {minimumFractionDigits:4, maximumFractionDigits:4})}/kWh`} color={C.success} />
  </div>
 
  {/* Comparison bar chart per Città */}
@@ -1284,7 +1291,7 @@ function EnergyPODAnalysis() {
  { key: "person", label: "Assegnatario" },
  { key: "totConsumo", label: "Consumo kWh", align: "right", render: v => <strong>{fmt(v)}</strong> },
  { key: "totFattura", label: "Spesa €", align: "right", render: v => <strong style={{ color: C.energyLight }}>{fmtEuro(v, 0)}</strong> },
- { key: "costoUnit", label: "€/kWh", align: "right", render: v => `€${v.toFixed(4)}` },
+ { key: "costoUnit", label: "€/kWh", align: "right", render: v => `€${v.toLocaleString("it-IT", {minimumFractionDigits:4, maximumFractionDigits:4})}` },
  { key: "avgPowerMax", label: "P.Max kW", align: "right" },
  { key: "pctEstimated", label: "% Stimato", align: "right", render: v => (
  <span style={{ color: v > 20 ? C.warn : C.success }}>{v.toFixed(0)}% {v > 20 ? "" : ""}</span>
@@ -1389,7 +1396,7 @@ function StatoFatturazione({ utility }) {
 
    {/* KPIs */}
    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 20 }}>
-    <KPICard label="Copertura" value={`${coveragePct.toFixed(0)}%`} color={coveragePct >= 90 ? C.success : coveragePct >= 60 ? C.warn : C.danger} />
+    <KPICard label="Copertura" value={`${fmt(coveragePct, 0)}%`} color={coveragePct >= 90 ? C.success : coveragePct >= 60 ? C.warn : C.danger} />
     <KPICard label={`${idLabel} Completi (12/12)`} value={fullyCovered} color={C.success} sub={`su ${totalDevices} totali`} />
     <KPICard label={`${idLabel} Parziali`} value={partialCovered} color={C.warn} />
     <KPICard label={`${idLabel} Senza Dati`} value={noCoverage} color={C.danger} />
@@ -1458,7 +1465,7 @@ function StatoFatturazione({ utility }) {
    {/* Summary row */}
    <div style={{ background: C.card, borderRadius: 8, padding: "10px 14px", border: `1px solid ${C.border}`, marginTop: 8, display: "flex", gap: 20, fontSize: 11, fontWeight: 600, color: C.textMuted }}>
     <span>Totale {idLabel}: {totalDevices}</span>
-    <span>Copertura: <span style={{ color: coveragePct >= 90 ? C.success : C.warn, fontWeight: 700 }}>{coveragePct.toFixed(1)}%</span></span>
+    <span>Copertura: <span style={{ color: coveragePct >= 90 ? C.success : C.warn, fontWeight: 700 }}>{fmt(coveragePct, 1)}%</span></span>
     <span>Mesi mancanti: <span style={{ color: totalMissing > 0 ? C.danger : C.success, fontWeight: 700 }}>{totalMissing}</span></span>
     <span>Spesa totale {year}: <span style={{ color: C.text, fontWeight: 700 }}>{fmtEuro(matrix.reduce((s, r) => s + r.totCost, 0), 0)}</span></span>
    </div>
@@ -1591,7 +1598,7 @@ function EnergyConsumption() {
 
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }}>
  <KPICard label="Consumo Totale" value={`${fmt(totConsumo)} kWh`} color={C.energy} />
- <KPICard label="Costo Medio Unitario" value={`€${avgCostoUnit.toFixed(4)}/kWh`} color={C.energyLight} />
+ <KPICard label="Costo Medio Unitario" value={`€${avgCostoUnit.toLocaleString("it-IT", {minimumFractionDigits:4, maximumFractionDigits:4})}/kWh`} color={C.energyLight} />
  <KPICard label="Potenza Max Assorbita" value={`${fmt(maxPower)} kW`} color={C.accent} />
  <KPICard label="POD Attivi" value={PODS.length} color={C.success} />
  <KPICard label="% Consumi Definitivi" value={`${fmt(100 - pctEstimated, 1)}%`} color={pctEstimated > 20 ? C.warn : C.success} warning={pctEstimated > 20} sub={`${fmt(pctEstimated, 1)}% stimati`} />
@@ -1674,7 +1681,7 @@ function EnergyConsumption() {
  { key: "consumoF3", label: "F3 kWh", align: "right", render: v => fmt(v) },
  { key: "potenzaMax", label: "P.Max kW", align: "right", render: v => fmt(v) },
  { key: "consumiDefinitivi", label: "Fonte", render: (v, row) => <Badge color={row.isEstimated ? C.warn : C.success}>{v}</Badge> },
- { key: "costoUnit", label: "€/kWh", align: "right", render: (_, row) => row.consumoTotale > 0 ? `€${(row.importoEnergia / row.consumoTotale).toFixed(4)}` : "—", sortable: false },
+ { key: "costoUnit", label: "€/kWh", align: "right", render: (_, row) => row.consumoTotale > 0 ? `€${(row.importoEnergia / row.consumoTotale).toLocaleString("it-IT", {minimumFractionDigits:4, maximumFractionDigits:4})}` : "—", sortable: false },
  ]}
  maxHeight={360}
  />
@@ -1767,7 +1774,7 @@ function GasPDRAnalysis() {
 
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 20 }}>
  <KPICard label="Consumo Annuo" value={`${fmt(pdr.totConsumo)} Smc`} color={C.gas} />
- <KPICard label="Costo Unitario" value={`€${pdr.costoUnit.toFixed(4)}/Smc`} color={C.gasLight} />
+ <KPICard label="Costo Unitario" value={`€${pdr.costoUnit.toLocaleString("it-IT", {minimumFractionDigits:4, maximumFractionDigits:4})}/Smc`} color={C.gasLight} />
  <KPICard label="Totale Fatturato" value={fmtEuro(pdr.totFattura, 0)} color={C.accent} />
  <KPICard label="PCS Medio" value={`${pdr.avgPCS.toFixed(2)} kJ/Smc`} color={C.accentLight} />
  </div>
@@ -1857,7 +1864,7 @@ function GasPDRAnalysis() {
  <KPICard label="PDR Totali" value={PDRS.length} color={C.gas} />
  <KPICard label="Consumo Totale Annuo" value={`${fmt(totalConsumo)} Smc`} color={C.gasLight} />
  <KPICard label="Spesa Totale Annua" value={fmtEuro(totalFattura, 0)} color={C.accent} />
- <KPICard label="Costo Medio" value={`€${avgCostoUnit.toFixed(4)}/Smc`} color={C.success} />
+ <KPICard label="Costo Medio" value={`€${avgCostoUnit.toLocaleString("it-IT", {minimumFractionDigits:4, maximumFractionDigits:4})}/Smc`} color={C.success} />
  <KPICard label="PCS Medio" value={`${avgPCSAll.toFixed(2)} kJ/Smc`} color={C.accentLight} />
  </div>
 
@@ -1922,8 +1929,8 @@ function GasPDRAnalysis() {
  { key: "person", label: "Assegnatario" },
  { key: "totConsumo", label: "Consumo Smc", align: "right", render: v => <strong>{fmt(v)}</strong> },
  { key: "totFattura", label: "Spesa €", align: "right", render: v => <strong style={{ color: C.gasLight }}>{fmtEuro(v, 0)}</strong> },
- { key: "costoUnit", label: "€/Smc", align: "right", render: v => `€${v.toFixed(4)}` },
- { key: "avgPCS", label: "PCS Medio", align: "right", render: v => v.toFixed(2) },
+ { key: "costoUnit", label: "€/Smc", align: "right", render: v => `€${v.toLocaleString("it-IT", {minimumFractionDigits:4, maximumFractionDigits:4})}` },
+ { key: "avgPCS", label: "PCS Medio", align: "right", render: v => v.toLocaleString("it-IT", {minimumFractionDigits:2, maximumFractionDigits:2}) },
  ]}
  data={filtered}
  maxHeight={420}
@@ -1968,7 +1975,7 @@ function GasContabilita() {
 
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }}>
  <KPICard label="Consumo Totale" value={`${fmt(totConsumo)} Smc`} color={C.gas} />
- <KPICard label="Costo Medio" value={totConsumo > 0 ? `€${(totFatt / totConsumo).toFixed(4)}/Smc` : "—"} color={C.gasLight} />
+ <KPICard label="Costo Medio" value={totConsumo > 0 ? `€${totFatt / totConsumo.toLocaleString("it-IT", {minimumFractionDigits:4, maximumFractionDigits:4})}/Smc` : "—"} color={C.gasLight} />
  <KPICard label="PDR Attivi" value={PDRS.length} color={C.success} />
  <KPICard label="PCS Medio" value={`${avgPCS.toFixed(2)} kJ/Smc`} color={C.accent} />
  <KPICard label="Totale Fatturato" value={fmtEuro(totFatt, 0)} color={C.gas} />
@@ -2031,7 +2038,7 @@ function GasCompetenza() {
 
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }}>
  <KPICard label="Consumo Totale" value={`${fmt(totConsumo)} Smc`} color={C.gas} />
- <KPICard label="Costo Medio" value={totConsumo > 0 ? `€${(totFatt / totConsumo).toFixed(4)}/Smc` : "—"} color={C.gasLight} />
+ <KPICard label="Costo Medio" value={totConsumo > 0 ? `€${totFatt / totConsumo.toLocaleString("it-IT", {minimumFractionDigits:4, maximumFractionDigits:4})}/Smc` : "—"} color={C.gasLight} />
  <KPICard label="PDR Attivi" value={PDRS.length} color={C.success} />
  <KPICard label="PCS Medio" value={`${avgPCS.toFixed(2)} kJ/Smc`} color={C.accent} />
  <KPICard label="Totale Fatturato" value={fmtEuro(totFatt, 0)} color={C.gas} />
@@ -2795,7 +2802,7 @@ function BudgetOverview() {
      { key: "totBudget", label: "Budget €", align: "right", render: v => fmtEuro(v, 0) },
      { key: "totActual", label: "Consolidato €", align: "right", render: v => <strong>{fmtEuro(v, 0)}</strong> },
      { key: "totDelta", label: "Scostamento €", align: "right", render: v => <span style={{ color: v > 0 ? C.danger : C.success, fontWeight: 600 }}>{v > 0 ? "+" : ""}{fmtEuro(v, 0)}</span> },
-     { key: "pct", label: "Δ %", align: "right", render: (_, row) => { const p = row.totBudget > 0 ? (row.totDelta / row.totBudget * 100) : 0; return <span style={{ color: p > 0 ? C.danger : C.success, fontWeight: 700 }}>{p > 0 ? "+" : ""}{p.toFixed(1)}%</span>; }},
+     { key: "pct", label: "Δ %", align: "right", render: (_, row) => { const p = row.totBudget > 0 ? (row.totDelta / row.totBudget * 100) : 0; return <span style={{ color: p > 0 ? C.danger : C.success, fontWeight: 700 }}>{p > 0 ? "+" : ""}{p.toLocaleString("it-IT", {minimumFractionDigits:1, maximumFractionDigits:1})}%</span>; }},
      { key: "overMonths", label: "Mesi Sopra", align: "center", render: v => <span style={{ color: v > 6 ? C.danger : C.success, fontWeight: 600 }}>{v}/12</span> },
      { key: "weight", label: "Peso %", align: "right", render: (_, row) => <span style={{ color: C.textMuted }}>{grandBudget > 0 ? (row.totBudget / grandBudget * 100).toFixed(1) : 0}%</span> },
     ]}
@@ -3141,7 +3148,7 @@ function ScenarioBuilder() {
     columns={[
      { key: "name", label: "Mese 2026" },
      { key: "consumo", label: `Consumi (${unit})`, align: "right", render: v => fmt(v) },
-     { key: "prezzo", label: `Prezzo (${futures.unit})`, align: "right", render: v => `€${v.toFixed(1)}` },
+     { key: "prezzo", label: `Prezzo (${futures.unit})`, align: "right", render: v => `€${v.toLocaleString("it-IT", {minimumFractionDigits:1, maximumFractionDigits:1})}` },
      { key: "costoMateria", label: "Materia Prima €", align: "right", render: v => fmtEuro(v, 0) },
      { key: "costoOneri", label: "Altri Oneri €", align: "right", render: v => fmtEuro(v, 0) },
      { key: "scenario", label: "Scenario €", align: "right", render: v => <strong style={{ color: meta.color }}>{fmtEuro(v, 0)}</strong> },
@@ -3236,7 +3243,7 @@ function ForecastUtilityDetail({ utility }) {
   return (
   <div key={i} style={{ background: isCons ? `${C.success}11` : `${meta.color}11`, borderRadius: 6, padding: "6px 2px", textAlign: "center", border: `1px solid ${isCons ? C.success : meta.color}22` }}>
   <div style={{ fontSize: 9, color: C.textDim, fontWeight: 600 }}>{MONTHS[i]} 26</div>
-  <div style={{ fontSize: 13, fontWeight: 800, color: isCons ? C.success : meta.color }}>{p.toFixed(1)}</div>
+  <div style={{ fontSize: 13, fontWeight: 800, color: isCons ? C.success : meta.color }}>{p.toLocaleString("it-IT", {minimumFractionDigits:1, maximumFractionDigits:1})}</div>
   <div style={{ fontSize: 8, color: isCons ? C.success : meta.color, fontWeight: 600 }}>{isCons ? "CONS." : "FCAST"}</div>
   </div>
   );
@@ -3274,8 +3281,8 @@ function ForecastUtilityDetail({ utility }) {
 
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 20 }}>
  <KPICard label="Totale 2026 (Cons.+Fcast)" value={fmtEuro(totAnno2026, 0)} color={meta.color} />
- <KPICard label="di cui Materia Prima (fcast)" value={fmtEuro(totMateria, 0)} color={C.materia} sub={totForecastOnly > 0 ? `${(totMateria / totForecastOnly * 100).toFixed(0)}% del forecast` : ""} />
- <KPICard label="di cui Altri Oneri (fcast)" value={fmtEuro(totOneri, 0)} color={C.oneri} sub={totForecastOnly > 0 ? `${(totOneri / totForecastOnly * 100).toFixed(0)}% del forecast` : ""} />
+ <KPICard label="di cui Materia Prima (fcast)" value={fmtEuro(totMateria, 0)} color={C.materia} sub={totForecastOnly > 0 ? `${fmt(totMateria / totForecastOnly * 100, 0)}% del forecast` : ""} />
+ <KPICard label="di cui Altri Oneri (fcast)" value={fmtEuro(totOneri, 0)} color={C.oneri} sub={totForecastOnly > 0 ? `${fmt(totOneri / totForecastOnly * 100, 0)}% del forecast` : ""} />
  <KPICard label="Totale 2025" value={fmtEuro(totActual2025, 0)} color={C.accent} />
  <KPICard label="Delta 2026 vs 2025" value={`${deltaVs2025 > 0 ? "+" : ""}${fmtEuro(deltaVs2025, 0)}`} color={deltaVs2025 > 0 ? C.danger : C.success} change={totActual2025 > 0 ? +(deltaVs2025 / totActual2025 * 100).toFixed(1) : 0} />
  </div>
@@ -3322,7 +3329,7 @@ function ForecastUtilityDetail({ utility }) {
   </div>
  )},
  { key: "consumoRef", label: `Consumi (${unit})`, align: "right", render: (v, row) => <span style={{ color: row.isConsolidato ? C.success : C.text }}>{fmt(v)}</span> },
- { key: "prezzoFuturesMWh", label: `Futures (${futures.unit})`, align: "right", render: v => `€${v.toFixed(1)}` },
+ { key: "prezzoFuturesMWh", label: `Futures (${futures.unit})`, align: "right", render: v => `€${v.toLocaleString("it-IT", {minimumFractionDigits:1, maximumFractionDigits:1})}` },
  { key: "costoMateria", label: "Materia Prima €", align: "right", render: (v, row) => row.isConsolidato ? <span style={{ color: C.textDim }}>—</span> : fmtEuro(v, 0) },
  { key: "costoAltriOneri", label: "Altri Oneri €", align: "right", render: (v, row) => row.isConsolidato ? <span style={{ color: C.textDim }}>—</span> : fmtEuro(v, 0) },
  { key: "valore2026", label: "2026 €", align: "right", render: (v, row) => <strong style={{ color: row.isConsolidato ? C.success : meta.color }}>{fmtEuro(v, 0)}</strong> },
@@ -4772,3 +4779,4 @@ root.render(React.createElement(App));
   </script>
 </body>
 </html>
+

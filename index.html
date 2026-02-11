@@ -925,7 +925,7 @@ function OverviewDashboard() {
  const totalConn = connData.reduce((s, d) => s + d.totaleFattura, 0);
  const grandTotal = totalEnergy + totalGas + totalMobile + totalFixed + totalConn;
 
- // Building KPIs
+ // Site KPIs
  const buildingStats = useMemo(() => {
  const filtered = isAll ? BUILDINGS : BUILDINGS.filter(b => b.company === co);
  const bldData = filtered.map(bld => {
@@ -1004,26 +1004,26 @@ function OverviewDashboard() {
  </ChartCard>
  </div>
 
- {/* Building KPI row */}
+ {/* Site KPI row */}
  <div style={{
  background: `linear-gradient(135deg, #8B5CF608, ${C.card})`,
  borderRadius: 14, border: `1px solid #8B5CF622`, padding: 18, marginBottom: 20,
  }}>
  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
  Patrimonio Immobiliare
- <span style={{ fontSize: 11, fontWeight: 400, color: C.textDim }}>— riepilogo edifici</span>
+ <span style={{ fontSize: 11, fontWeight: 400, color: C.textDim }}>— riepilogo siti</span>
  </div>
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))", gap: 12 }}>
- <KPICard label="N. Edifici" value={buildingStats.count} color="#8B5CF6" />
- <KPICard label="Costo Edifici" value={fmtEuro(buildingStats.totalCost, 0)} color={C.accent} sub="/anno" />
+ <KPICard label="N. Siti" value={buildingStats.count} color="#8B5CF6" />
+ <KPICard label="Costo Siti" value={fmtEuro(buildingStats.totalCost, 0)} color={C.accent} sub="/anno" />
  <KPICard label="Dispositivi" value={buildingStats.totalDevices} color={C.conn} sub="associati" />
- <KPICard label="Costo Medio/Edificio" value={buildingStats.count > 0 ? fmtEuro(buildingStats.totalCost / buildingStats.count, 0) : "—"} color="#8B5CF6" sub="/anno" />
- <KPICard label="Edificio più Costoso" value={buildingStats.costliest ? fmtEuro(buildingStats.costliest.totalCost, 0) : "—"} color={C.warn} sub={buildingStats.costliest?.name?.split(" - ")[0] || ""} />
+ <KPICard label="Costo Medio/Sito" value={buildingStats.count > 0 ? fmtEuro(buildingStats.totalCost / buildingStats.count, 0) : "—"} color="#8B5CF6" sub="/anno" />
+ <KPICard label="Sito più Costoso" value={buildingStats.costliest ? fmtEuro(buildingStats.costliest.totalCost, 0) : "—"} color={C.warn} sub={buildingStats.costliest?.name?.split(" - ")[0] || ""} />
  </div>
  </div>
 
  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
- <ChartCard title=" Top Edifici per Spesa Totale">
+ <ChartCard title=" Top Siti per Spesa Totale">
  <ResponsiveContainer width="100%" height={Math.max(160, buildingStats.topBuildings.length * 40)}>
  <BarChart data={buildingStats.topBuildings} layout="vertical" margin={{ left: 150 }}>
  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
@@ -2360,7 +2360,7 @@ function DeviceRegistry() {
  const [filter, setFilter] = useState("all");
  const [search, setSearch] = useState("");
 
- // Build device-to-building lookup from BUILDINGS
+ // Build device-to-site lookup from SITES
  const deviceBuildingMap = useMemo(() => {
  const map = {};
  BUILDINGS.forEach(bld => {
@@ -2415,7 +2415,7 @@ function DeviceRegistry() {
  columns={[
  { key: "typeLabel", label: "Tipo" },
  { key: "identifier", label: "Identificativo", render: v => <span style={{ fontFamily: "monospace", fontSize: 12, color: C.accentLight }}>{v}</span> },
- { key: "building", label: "Building", render: v => v ? (
+ { key: "building", label: "Sito", render: v => v ? (
  <span style={{ fontSize: 11, fontWeight: 600, color: C.text }}> {v.name}</span>
  ) : (
  <span style={{ fontSize: 11, color: C.warn, fontStyle: "italic" }}> Non associato</span>
@@ -2537,6 +2537,27 @@ function UtilityBudgetTab({ utility }) {
  const applyPct = (pct) => setBudgetValues(prev => prev.map(v => Math.round(v * (1 + pct / 100))));
  const copyActual = () => setBudgetValues(Array.from({ length: 12 }, (_, m) => Math.round(getActualByUtilityMonth(utility, m, co))));
 
+ // Generate budget from futures prices (only for energia and gas)
+ const hasFutures = utility === "energia" || utility === "gas";
+ const generateFromFutures = () => {
+  if (!hasFutures) return;
+  const futures = FUTURES_PRICES[utility];
+  const newBudget = Array.from({ length: 12 }, (_, m) => {
+   // Consumi 2025 as base
+   const consumo2025 = getConsumoByUtilityMonth(utility, m, co, 2025);
+   // Materia prima: consumo × prezzo futures 2026
+   const prezzoPerUnit = futures.toUnit(futures.monthly[m]);
+   const costoMateria = consumo2025 * prezzoPerUnit;
+   // Altri oneri: coefficiente dal 2025
+   const altriOneri2025 = getAltriOneriByMonth(utility, m, co, 2025);
+   const consumoCorr2025 = getConsumoByUtilityMonth(utility, m, co, 2025);
+   const ratioOneri = consumoCorr2025 > 0 ? altriOneri2025 / consumoCorr2025 : 0;
+   const costoOneri = consumo2025 * ratioOneri;
+   return Math.round(costoMateria + costoOneri);
+  });
+  setBudgetValues(newBudget);
+ };
+
  const comparison = budgetValues.map((b, m) => {
  const actual = +getActualByUtilityMonth(utility, m, co).toFixed(0);
  const delta = actual - b;
@@ -2559,7 +2580,8 @@ function UtilityBudgetTab({ utility }) {
  background: `${meta.color}11`, borderRadius: 12, padding: "12px 16px",
  border: `1px solid ${meta.color}22`, fontSize: 12, color: C.textMuted, lineHeight: 1.6, marginBottom: 18,
  }}>
- <strong style={{ color: C.text }}>Clicca su qualsiasi importo del budget</strong> per modificarlo. Usa i pulsanti rapidi per copiare l'actual come base o applicare variazioni %. Lo scostamento si aggiorna in tempo reale.
+ <strong style={{ color: C.text }}>Clicca su qualsiasi importo del budget</strong> per modificarlo. Usa i pulsanti rapidi per copiare l'actual come base o applicare variazioni %.
+ {hasFutures && <> Il pulsante <strong style={{ color: meta.color }}>Genera Budget 2026 da Futures</strong> calcola il budget usando i consumi 2025 e i prezzi futures 2026 ({utility === "energia" ? "EEX Italian Power" : "ICE Dutch TTF"}), poi puoi affinare i valori manualmente.</>}
  </div>
 
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 20 }}>
@@ -2570,8 +2592,11 @@ function UtilityBudgetTab({ utility }) {
  </div>
 
  {/* Quick actions */}
- <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
- <button onClick={copyActual} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.textMuted, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}> Copia da Actual</button>
+ <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+ {hasFutures && (
+ <button onClick={generateFromFutures} style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${meta.color}`, background: `${meta.color}15`, color: meta.color, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Genera Budget 2026 da Futures</button>
+ )}
+ <button onClick={copyActual} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.textMuted, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Copia da Actual</button>
  <button onClick={() => applyPct(5)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.textMuted, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>+5%</button>
  <button onClick={() => applyPct(-5)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.textMuted, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>−5%</button>
  <button onClick={() => applyPct(10)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.textMuted, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>+10%</button>
@@ -3726,7 +3751,7 @@ function AIAssistant() {
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 
-// ─── BUILDING AGGREGATED VIEW ─────────────────────────────────────────────────
+// ─── SITE AGGREGATED VIEW ─────────────────────────────────────────────────
 
 function BuildingDashboard() {
  const { co, isAll, companyName, energyData, gasData, mobileData, fixedData, connData } = useCompanyFilter();
@@ -3790,13 +3815,13 @@ function BuildingDashboard() {
 
  return (
  <div>
- {/* When a building is selected, show ONLY its detail scheda */}
+ {/* When a site is selected, show ONLY its detail scheda */}
  {sel ? (
  <BuildingDetail building={sel} onClose={() => setSelectedBuilding(null)} />
  ) : (
  <>
- <SectionTitle sub={`Costi utility aggregati per edificio — ${companyName}`}>
- Vista per Building
+ <SectionTitle sub={`Costi utility aggregati per sito — ${companyName}`}>
+ Vista per Sito
  </SectionTitle>
 
  {/* Tab bar */}
@@ -3816,13 +3841,13 @@ function BuildingDashboard() {
  <>
  {/* KPI row */}
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 24 }}>
- <KPICard label="N. Edifici" value={buildings.length} color="#8B5CF6" />
+ <KPICard label="N. Siti" value={buildings.length} color="#8B5CF6" />
  <KPICard label="Costo Totale Annuo" value={fmtEuro(grandTotal, 0)} color={C.accent} />
  <KPICard label="Dispositivi Associati" value={totalDevices} color={C.conn} />
  </div>
 
  {/* Horizontal bar chart */}
- <ChartCard title="Costo Annuo per Edificio" style={{ marginBottom: 20 }}>
+ <ChartCard title="Costo Annuo per Sito" style={{ marginBottom: 20 }}>
  <ResponsiveContainer width="100%" height={Math.max(180, buildings.length * 48)}>
  <BarChart data={buildings} layout="vertical" margin={{ left: 180 }}>
  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
@@ -3839,15 +3864,15 @@ function BuildingDashboard() {
  </ResponsiveContainer>
  </ChartCard>
 
- {/* Buildings cards grid */}
+ {/* Sites cards grid */}
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
- <SectionTitle sub="Seleziona un edificio per aprire la scheda di dettaglio" style={{ marginBottom: 0 }}>Elenco Edifici</SectionTitle>
+ <SectionTitle sub="Seleziona un sito per aprire la scheda di dettaglio" style={{ marginBottom: 0 }}>Elenco Siti</SectionTitle>
  <div style={{ position: "relative" }}>
  <input
  type="text"
  value={searchQuery}
  onChange={e => setSearchQuery(e.target.value)}
- placeholder=" Cerca edificio, città, indirizzo..."
+ placeholder=" Cerca sito, città, indirizzo..."
  style={{
  padding: "9px 14px 9px 14px", borderRadius: 10,
  border: `1px solid ${searchQuery ? C.accent : C.border}`,
@@ -3877,7 +3902,7 @@ function BuildingDashboard() {
  ) : buildings;
  return filtered.length === 0 ? (
  <div style={{ textAlign: "center", padding: 40, color: C.textDim, fontSize: 13 }}>
- Nessun edificio trovato per "{searchQuery}". Prova con un altro termine.
+ Nessun sito trovato per "{searchQuery}". Prova con un altro termine.
  </div>
  ) : (
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 14 }}>
@@ -4006,7 +4031,7 @@ function DeviceAssignmentPanel({ buildings, onAssign, onUnassign, companyFilter,
  borderRadius: 12, padding: "12px 16px", border: `1px solid #8B5CF622`,
  fontSize: 12, color: C.textMuted, lineHeight: 1.6, marginBottom: 20,
  }}>
- Elenco completo di tutti i dispositivi. Usa il menu a tendina per associare o spostare un dispositivo in un building. I costi vengono ricalcolati automaticamente nella panoramica.
+ Elenco completo di tutti i dispositivi. Usa il menu a tendina per associare o spostare un dispositivo in un sito. I costi vengono ricalcolati automaticamente nella panoramica.
  </div>
 
  {/* Filter pills */}
@@ -4033,7 +4058,7 @@ function DeviceAssignmentPanel({ buildings, onAssign, onUnassign, companyFilter,
  <span>ID Dispositivo</span>
  <span>Dettaglio</span>
  <span>Azienda</span>
- <span>Building Associato</span>
+ <span>Sito Associato</span>
  <span></span>
  </div>
 
@@ -4282,7 +4307,7 @@ function BuildingDetail({ building: b, onClose }) {
  {detailTab === "energia" && (
  <div>
  {podDetails.length === 0 ? (
- <div style={{ textAlign: "center", padding: 40, color: C.textDim }}>Nessun POD associato a questo building.</div>
+ <div style={{ textAlign: "center", padding: 40, color: C.textDim }}>Nessun POD associato a questo sito.</div>
  ) : podDetails.map(({ pod, podId, totKwh, totEuro, monthly }) => (
  <div key={podId} style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.energy}22`, padding: 16, marginBottom: 16 }}>
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -4315,7 +4340,7 @@ function BuildingDetail({ building: b, onClose }) {
  {detailTab === "gas" && (
  <div>
  {pdrDetails.length === 0 ? (
- <div style={{ textAlign: "center", padding: 40, color: C.textDim }}>Nessun PDR associato a questo building.</div>
+ <div style={{ textAlign: "center", padding: 40, color: C.textDim }}>Nessun PDR associato a questo sito.</div>
  ) : pdrDetails.map(({ pdr, pdrId, totSmc, totEuro, monthly }) => (
  <div key={pdrId} style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.gas}22`, padding: 16, marginBottom: 16 }}>
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -4494,7 +4519,7 @@ const NAV_ITEMS = [
  { key: "mobile", label: "Telefonia Mobile" },
  { key: "fisso", label: "Telefonia Fissa" },
  { key: "connettivita", label: "Connettività" },
- { key: "buildings", label: "Vista per Building" },
+ { key: "siti", label: "Vista per Sito" },
  { key: "dispositivi", label: "Anagrafica Dispositivi" },
  { key: "budget", label: "Budget Complessivo" },
  { key: "forecast", label: "Forecast E&G" },
@@ -4518,7 +4543,7 @@ function App() {
  { keys: "4", label: "Telefonia Mobile", action: () => setPage("mobile") },
  { keys: "5", label: "Telefonia Fissa", action: () => setPage("fisso") },
  { keys: "6", label: "Connettività", action: () => setPage("connettivita") },
- { keys: "7", label: "Vista Building", action: () => setPage("buildings") },
+ { keys: "7", label: "Vista Sito", action: () => setPage("siti") },
  { keys: "8", label: "Anagrafica Dispositivi", action: () => setPage("dispositivi") },
  { keys: "9", label: "Budget Complessivo", action: () => setPage("budget") },
  { keys: "0", label: "Forecast E&G", action: () => setPage("forecast") },
@@ -4547,7 +4572,7 @@ function App() {
  case "mobile": return <MobileDashboard />;
  case "fisso": return <FixedDashboard />;
  case "connettivita": return <ConnDashboard />;
- case "buildings": return <BuildingDashboard />;
+ case "siti": return <BuildingDashboard />;
  case "dispositivi": return <DeviceRegistry />;
  case "budget": return <BudgetOverview />;
  case "forecast": return <ForecastDashboard />;

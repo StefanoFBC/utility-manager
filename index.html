@@ -4444,37 +4444,93 @@ function BuildingDetail({ building: b, onClose }) {
  const { energyData, gasData } = useCompanyFilter();
  const [detailTab, setDetailTab] = useState("overview");
 
+ // Period filter for this building
+ const bldEnergyAll = useMemo(() => energyData.filter(d => b.devices.pods.includes(d.pod)), [energyData, b.devices.pods]);
+ const bldGasAll = useMemo(() => gasData.filter(d => b.devices.pdrs.includes(d.pdr)), [gasData, b.devices.pdrs]);
+ const { preset, setPreset, filtered: filtEnergy, customFrom, setCustomFrom, customTo, setCustomTo } = usePeriodFilter(bldEnergyAll);
+ const filtGas = useMemo(() => {
+  if (preset === "all") return bldGasAll;
+  if (preset === "custom") {
+   return bldGasAll.filter(d => {
+    const ym = d.anno * 100 + d.meseConsumi;
+    const from = customFrom ? parseInt(customFrom.split("-")[0]) * 100 + parseInt(customFrom.split("-")[1]) - 1 : 0;
+    const to = customTo ? parseInt(customTo.split("-")[0]) * 100 + parseInt(customTo.split("-")[1]) - 1 : 999999;
+    return ym >= from && ym <= to;
+   });
+  }
+  const now = new Date();
+  const nowY = now.getFullYear();
+  const presetFilters = {
+   "2022": d => d.anno === 2022, "2023": d => d.anno === 2023, "2024": d => d.anno === 2024,
+   "2025": d => d.anno === 2025, "2026": d => d.anno === 2026,
+   "last12": d => { const dm = d.anno * 12 + d.meseConsumi; const nm = nowY * 12 + now.getMonth(); return dm >= nm - 11 && dm <= nm; },
+   "last24": d => { const dm = d.anno * 12 + d.meseConsumi; const nm = nowY * 12 + now.getMonth(); return dm >= nm - 23 && dm <= nm; },
+  };
+  const fn = presetFilters[preset];
+  return fn ? bldGasAll.filter(fn) : bldGasAll;
+ }, [bldGasAll, preset, customFrom, customTo]);
+
+ // Recompute all costs from filtered data
+ const eCost = filtEnergy.reduce((s, d) => s + d.totaleFattura, 0);
+ const eKwh = filtEnergy.reduce((s, d) => s + d.consumoTotale, 0);
+ const gCost = filtGas.reduce((s, d) => s + d.totaleFattura, 0);
+ const gSmc = filtGas.reduce((s, d) => s + d.consumoSmc, 0);
+ const fCost = FIXED_LINES.filter(l => b.devices.fixedLines.includes(l.id)).reduce((s, l) => s + l.monthlyCost * 12, 0);
+ const cCost = CONNECTIVITY.filter(c => b.devices.connectivity.includes(c.id)).reduce((s, c) => s + c.monthlyCost * 12, 0);
+ const mCost = MOBILE_LINES.filter(l => b.devices.mobileLines.includes(l.id)).reduce((s, l) => s + l.fixedCost * 12, 0);
+ const totalCost = eCost + gCost + fCost + cCost + mCost;
+
+ // Monthly data from filtered period
+ const monthly = useMemo(() => {
+  const months = {};
+  filtEnergy.forEach(d => {
+   const k = `${d.anno}-${d.meseConsumi}`;
+   if (!months[k]) months[k] = { anno: d.anno, m: d.meseConsumi, name: `${MONTHS[d.meseConsumi]} ${String(d.anno).slice(2)}`, energia: 0, gas: 0, fisso: 0, conn: 0, mobile: 0, totale: 0 };
+   months[k].energia += d.totaleFattura;
+  });
+  filtGas.forEach(d => {
+   const k = `${d.anno}-${d.meseConsumi}`;
+   if (!months[k]) months[k] = { anno: d.anno, m: d.meseConsumi, name: `${MONTHS[d.meseConsumi]} ${String(d.anno).slice(2)}`, energia: 0, gas: 0, fisso: 0, conn: 0, mobile: 0, totale: 0 };
+   months[k].gas += d.totaleFattura;
+  });
+  const mf = FIXED_LINES.filter(l => b.devices.fixedLines.includes(l.id)).reduce((s, l) => s + l.monthlyCost, 0);
+  const mc = CONNECTIVITY.filter(c => b.devices.connectivity.includes(c.id)).reduce((s, c) => s + c.monthlyCost, 0);
+  const mm = MOBILE_LINES.filter(l => b.devices.mobileLines.includes(l.id)).reduce((s, l) => s + l.fixedCost, 0);
+  Object.values(months).forEach(d => { d.fisso = +mf.toFixed(0); d.conn = +mc.toFixed(0); d.mobile = +mm.toFixed(0); d.totale = +(d.energia + d.gas + d.fisso + d.conn + d.mobile).toFixed(0); d.energia = +d.energia.toFixed(0); d.gas = +d.gas.toFixed(0); });
+  return Object.values(months).sort((a, b) => a.anno * 12 + a.m - (b.anno * 12 + b.m));
+ }, [filtEnergy, filtGas, b.devices]);
+
  const utilBreakdown = [
- { name: "Energia Elettrica", value: +b.eCost.toFixed(0), color: C.energy, detail: `${fmt(b.eKwh)} kWh · ${b.devices.pods.length} POD` },
- { name: "Gas Naturale", value: +b.gCost.toFixed(0), color: C.gas, detail: `${fmt(b.gSmc)} Smc · ${b.devices.pdrs.length} PDR` },
- { name: "Telefonia Fissa", value: +b.fCost.toFixed(0), color: C.fixed, detail: `${b.devices.fixedLines.length} linee` },
- { name: "Connettività", value: +b.cCost.toFixed(0), color: C.conn, detail: `${b.devices.connectivity.length} circuiti` },
- { name: "Telefonia Mobile", value: +b.mCost.toFixed(0), color: C.mobile, detail: `${b.devices.mobileLines.length} SIM` },
+ { name: "Energia Elettrica", value: +eCost.toFixed(0), color: C.energy, detail: `${fmt(eKwh)} kWh · ${b.devices.pods.length} POD` },
+ { name: "Gas Naturale", value: +gCost.toFixed(0), color: C.gas, detail: `${fmt(gSmc)} Smc · ${b.devices.pdrs.length} PDR` },
+ { name: "Telefonia Fissa", value: +fCost.toFixed(0), color: C.fixed, detail: `${b.devices.fixedLines.length} linee` },
+ { name: "Connettività", value: +cCost.toFixed(0), color: C.conn, detail: `${b.devices.connectivity.length} circuiti` },
+ { name: "Telefonia Mobile", value: +mCost.toFixed(0), color: C.mobile, detail: `${b.devices.mobileLines.length} SIM` },
  ].filter(u => u.value > 0);
 
  const podDetails = useMemo(() => b.devices.pods.map(podId => {
  const pod = PODS.find(p => p.id === podId);
- const rows = energyData.filter(d => d.pod === podId);
+ const rows = filtEnergy.filter(d => d.pod === podId);
  const totKwh = rows.reduce((s, d) => s + d.consumoTotale, 0);
  const totEuro = rows.reduce((s, d) => s + d.totaleFattura, 0);
- const monthly = Array.from({ length: 12 }, (_, m) => {
+ const monthlyPod = Array.from({ length: 12 }, (_, m) => {
  const mr = rows.filter(d => d.meseConsumi === m);
  return { name: MONTHS[m], kwh: mr.reduce((s, d) => s + d.consumoTotale, 0), euro: +mr.reduce((s, d) => s + d.totaleFattura, 0).toFixed(0) };
  });
- return { pod, podId, totKwh, totEuro, monthly };
- }), [energyData, b.devices.pods]);
+ return { pod, podId, totKwh, totEuro, monthly: monthlyPod };
+ }), [filtEnergy, b.devices.pods]);
 
  const pdrDetails = useMemo(() => b.devices.pdrs.map(pdrId => {
  const pdr = PDRS.find(p => p.id === pdrId);
- const rows = gasData.filter(d => d.pdr === pdrId);
+ const rows = filtGas.filter(d => d.pdr === pdrId);
  const totSmc = rows.reduce((s, d) => s + d.consumoSmc, 0);
  const totEuro = rows.reduce((s, d) => s + d.totaleFattura, 0);
- const monthly = Array.from({ length: 12 }, (_, m) => {
+ const monthlyPdr = Array.from({ length: 12 }, (_, m) => {
  const mr = rows.filter(d => d.meseConsumi === m);
  return { name: MONTHS[m], smc: mr.reduce((s, d) => s + d.consumoSmc, 0), euro: +mr.reduce((s, d) => s + d.totaleFattura, 0).toFixed(0) };
  });
- return { pdr, pdrId, totSmc, totEuro, monthly };
- }), [gasData, b.devices.pdrs]);
+ return { pdr, pdrId, totSmc, totEuro, monthly: monthlyPdr };
+ }), [filtGas, b.devices.pdrs]);
 
  const companyObj = COMPANIES.find(c => c.id === b.company);
  const detailTabs = [
@@ -4520,15 +4576,15 @@ function BuildingDetail({ building: b, onClose }) {
 
  {/* KPIs */}
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 20 }}>
- <KPICard label="Costo Totale Annuo" value={fmtEuro(b.totalCost, 0)} color={C.accent} />
- <KPICard label="Costo Medio Mese" value={fmtEuro(b.totalCost / 12, 0)} color="#8B5CF6" />
- <KPICard label="Energia" value={fmtEuro(b.eCost, 0)} color={C.energy} sub={`${fmt(b.eKwh)} kWh`} />
- <KPICard label="Gas" value={fmtEuro(b.gCost, 0)} color={C.gas} sub={`${fmt(b.gSmc)} Smc`} />
- <KPICard label="TLC & Conn." value={fmtEuro(b.fCost + b.cCost + b.mCost, 0)} color={C.fixed} />
+ <KPICard label="Costo Totale" value={fmtEuro(totalCost, 0)} color={C.accent} />
+ <KPICard label="Costo Medio Mese" value={fmtEuro(monthly.length > 0 ? totalCost / monthly.length : 0, 0)} color="#8B5CF6" />
+ <KPICard label="Energia" value={fmtEuro(eCost, 0)} color={C.energy} sub={`${fmt(eKwh)} kWh`} />
+ <KPICard label="Gas" value={fmtEuro(gCost, 0)} color={C.gas} sub={`${fmt(gSmc)} Smc`} />
+ <KPICard label="TLC & Conn." value={fmtEuro(fCost + cCost + mCost, 0)} color={C.fixed} />
  </div>
 
  {/* Detail tabs */}
- <div style={{ display: "flex", gap: 2, marginBottom: 20, borderBottom: `1px solid ${C.border}`, paddingBottom: 0 }}>
+ <div style={{ display: "flex", gap: 2, marginBottom: 14, borderBottom: `1px solid ${C.border}`, paddingBottom: 0 }}>
  {detailTabs.map(t => (
  <button key={t.key} onClick={() => setDetailTab(t.key)} style={{
  padding: "10px 16px", border: "none", borderBottom: detailTab === t.key ? `2px solid ${C.accent}` : "2px solid transparent",
@@ -4538,6 +4594,9 @@ function BuildingDetail({ building: b, onClose }) {
  }}>{t.label}</button>
  ))}
  </div>
+
+ {/* Period filter */}
+ <PeriodFilterBar preset={preset} setPreset={setPreset} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
 
  {/* OVERVIEW TAB */}
  {detailTab === "overview" && (
@@ -4566,7 +4625,7 @@ function BuildingDetail({ building: b, onClose }) {
  </ChartCard>
  <ChartCard title="Trend Mensile — Tutte le Utility">
  <ResponsiveContainer width="100%" height={280}>
- <ComposedChart data={b.monthly}>
+ <ComposedChart data={monthly}>
  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
  <XAxis dataKey="name" tick={{ fill: C.textDim, fontSize: 11 }} />
  <YAxis tick={{ fill: C.textDim, fontSize: 11 }} tickFormatter={v => `€${(v / 1000).toFixed(0)}k`} />
@@ -4589,7 +4648,7 @@ function BuildingDetail({ building: b, onClose }) {
  <thead>
  <tr style={{ borderBottom: `1px solid ${C.border}` }}>
  <th style={{ textAlign: "left", padding: "6px 8px", color: C.textDim, fontWeight: 600 }}>Utility</th>
- {MONTHS.map(m => <th key={m} style={{ textAlign: "right", padding: "6px 6px", color: C.textDim, fontWeight: 600 }}>{m}</th>)}
+ {monthly.map((m, i) => <th key={i} style={{ textAlign: "right", padding: "6px 6px", color: C.textDim, fontWeight: 600 }}>{m.name}</th>)}
  <th style={{ textAlign: "right", padding: "6px 8px", color: C.accentLight, fontWeight: 700 }}>TOTALE</th>
  </tr>
  </thead>
@@ -4603,14 +4662,14 @@ function BuildingDetail({ building: b, onClose }) {
  ].map(row => (
  <tr key={row.key} style={{ borderBottom: `1px solid ${C.border}08` }}>
  <td style={{ padding: "6px 8px", fontWeight: 600, color: row.color }}>{row.label}</td>
- {b.monthly.map((m, i) => <td key={i} style={{ textAlign: "right", padding: "6px 6px", color: C.textMuted }}>{m[row.key] > 0 ? fmtEuro(m[row.key], 0) : "—"}</td>)}
- <td style={{ textAlign: "right", padding: "6px 8px", fontWeight: 700, color: row.color }}>{fmtEuro(b.monthly.reduce((s, m) => s + m[row.key], 0), 0)}</td>
+ {monthly.map((m, i) => <td key={i} style={{ textAlign: "right", padding: "6px 6px", color: C.textMuted }}>{m[row.key] > 0 ? fmtEuro(m[row.key], 0) : "—"}</td>)}
+ <td style={{ textAlign: "right", padding: "6px 8px", fontWeight: 700, color: row.color }}>{fmtEuro(monthly.reduce((s, m) => s + m[row.key], 0), 0)}</td>
  </tr>
  ))}
  <tr style={{ borderTop: `2px solid ${C.border}` }}>
  <td style={{ padding: "8px 8px", fontWeight: 700, color: C.text }}>TOTALE</td>
- {b.monthly.map((m, i) => <td key={i} style={{ textAlign: "right", padding: "8px 6px", fontWeight: 700, color: C.accentLight }}>{fmtEuro(m.totale, 0)}</td>)}
- <td style={{ textAlign: "right", padding: "8px 8px", fontWeight: 700, fontSize: 13, color: C.accentLight }}>{fmtEuro(b.totalCost, 0)}</td>
+ {monthly.map((m, i) => <td key={i} style={{ textAlign: "right", padding: "8px 6px", fontWeight: 700, color: C.accentLight }}>{fmtEuro(m.totale, 0)}</td>)}
+ <td style={{ textAlign: "right", padding: "8px 8px", fontWeight: 700, fontSize: 13, color: C.accentLight }}>{fmtEuro(totalCost, 0)}</td>
  </tr>
  </tbody>
  </table>

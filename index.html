@@ -2510,12 +2510,63 @@ function getAltriOneriByMonth(utility, m, co, anno) {
 
 const UTILITY_KEYS = ["energia", "gas", "mobile", "fisso", "connettivita"];
 
+// Per-device helpers (POD/PDR level)
+function getActualByDevice(utility, deviceId, m, co, anno) {
+ const yf = (d) => anno ? d.anno === anno : true;
+ if (utility === "energia") return ENERGY_DATA.filter(d => d.pod === deviceId && d.meseConsumi === m && yf(d) && (co === "all" || !co || d.company === co)).reduce((s, d) => s + d.totaleFattura, 0);
+ if (utility === "gas") return GAS_DATA.filter(d => d.pdr === deviceId && d.meseConsumi === m && yf(d) && (co === "all" || !co || d.company === co)).reduce((s, d) => s + d.totaleFattura, 0);
+ return 0;
+}
+function getConsumoByDevice(utility, deviceId, m, co, anno) {
+ const yf = (d) => anno ? d.anno === anno : true;
+ if (utility === "energia") return ENERGY_DATA.filter(d => d.pod === deviceId && d.meseConsumi === m && yf(d) && (co === "all" || !co || d.company === co)).reduce((s, d) => s + d.consumoTotale, 0);
+ if (utility === "gas") return GAS_DATA.filter(d => d.pdr === deviceId && d.meseConsumi === m && yf(d) && (co === "all" || !co || d.company === co)).reduce((s, d) => s + d.consumoSmc, 0);
+ return 0;
+}
+function getAltriOneriByDevice(utility, deviceId, m, co, anno) {
+ const yf = (d) => anno ? d.anno === anno : true;
+ if (utility === "energia") {
+  const rows = ENERGY_DATA.filter(d => d.pod === deviceId && d.meseConsumi === m && yf(d) && (co === "all" || !co || d.company === co));
+  const totFatt = rows.reduce((s, d) => s + d.totaleFattura, 0);
+  const materia = rows.reduce((s, d) => s + d.importoEnergia, 0);
+  return totFatt - materia;
+ }
+ if (utility === "gas") {
+  const rows = GAS_DATA.filter(d => d.pdr === deviceId && d.meseConsumi === m && yf(d) && (co === "all" || !co || d.company === co));
+  const totFatt = rows.reduce((s, d) => s + d.totaleFattura, 0);
+  const materia = rows.reduce((s, d) => s + d.qvMese, 0);
+  return totFatt - materia;
+ }
+ return 0;
+}
+
 // ─── REUSABLE UTILITY BUDGET TAB ──────────────────────────────────────────────
 
 function UtilityBudgetTab({ utility }) {
  const meta = UTILITY_META[utility];
- const { co } = useCompanyFilter();
+ const { co, pods, pdrs } = useCompanyFilter();
  const unit = utility === "energia" ? "kWh" : utility === "gas" ? "Smc" : "€";
+ const hasFutures = utility === "energia" || utility === "gas";
+ const isEG = hasFutures;
+ const devices = isEG ? (utility === "energia" ? pods : pdrs) : [];
+ const idKey = utility === "energia" ? "pod" : "pdr";
+ const idLabel = utility === "energia" ? "POD" : "PDR";
+
+ const [selectedDevice, setSelectedDevice] = useState("all");
+
+ // Actual/consumo getters that respect device selection
+ const getActual = (m, anno) => {
+  if (!isEG || selectedDevice === "all") return getActualByUtilityMonth(utility, m, co, anno);
+  return getActualByDevice(utility, selectedDevice, m, co, anno);
+ };
+ const getConsumo = (m, anno) => {
+  if (!isEG || selectedDevice === "all") return getConsumoByUtilityMonth(utility, m, co, anno);
+  return getConsumoByDevice(utility, selectedDevice, m, co, anno);
+ };
+ const getOneri = (m, anno) => {
+  if (!isEG || selectedDevice === "all") return getAltriOneriByMonth(utility, m, co, anno);
+  return getAltriOneriByDevice(utility, selectedDevice, m, co, anno);
+ };
 
  const [budgetValues, setBudgetValues] = useState(() =>
  Array.from({ length: 12 }, (_, m) => {
@@ -2523,6 +2574,15 @@ function UtilityBudgetTab({ utility }) {
  return Math.round(actual * (0.92 + Math.random() * 0.16));
  })
  );
+
+ // Reset budget when device changes
+ useEffect(() => {
+  setBudgetValues(Array.from({ length: 12 }, (_, m) => {
+   const actual = getActual(m);
+   return Math.round(actual * (0.95 + Math.random() * 0.10));
+  }));
+ }, [selectedDevice]);
+
  const [editingCell, setEditingCell] = useState(null);
  const [editValue, setEditValue] = useState("");
 
@@ -2535,22 +2595,17 @@ function UtilityBudgetTab({ utility }) {
  const handleCellKeyDown = (e) => { if (e.key === "Enter") handleCellSave(); if (e.key === "Escape") setEditingCell(null); };
 
  const applyPct = (pct) => setBudgetValues(prev => prev.map(v => Math.round(v * (1 + pct / 100))));
- const copyActual = () => setBudgetValues(Array.from({ length: 12 }, (_, m) => Math.round(getActualByUtilityMonth(utility, m, co))));
+ const copyActual = () => setBudgetValues(Array.from({ length: 12 }, (_, m) => Math.round(getActual(m))));
 
- // Generate budget from futures prices (only for energia and gas)
- const hasFutures = utility === "energia" || utility === "gas";
  const generateFromFutures = () => {
   if (!hasFutures) return;
   const futures = FUTURES_PRICES[utility];
   const newBudget = Array.from({ length: 12 }, (_, m) => {
-   // Consumi 2025 as base
-   const consumo2025 = getConsumoByUtilityMonth(utility, m, co, 2025);
-   // Materia prima: consumo × prezzo futures 2026
+   const consumo2025 = getConsumo(m, 2025);
    const prezzoPerUnit = futures.toUnit(futures.monthly[m]);
    const costoMateria = consumo2025 * prezzoPerUnit;
-   // Altri oneri: coefficiente dal 2025
-   const altriOneri2025 = getAltriOneriByMonth(utility, m, co, 2025);
-   const consumoCorr2025 = getConsumoByUtilityMonth(utility, m, co, 2025);
+   const altriOneri2025 = getOneri(m, 2025);
+   const consumoCorr2025 = getConsumo(m, 2025);
    const ratioOneri = consumoCorr2025 > 0 ? altriOneri2025 / consumoCorr2025 : 0;
    const costoOneri = consumo2025 * ratioOneri;
    return Math.round(costoMateria + costoOneri);
@@ -2559,7 +2614,7 @@ function UtilityBudgetTab({ utility }) {
  };
 
  const comparison = budgetValues.map((b, m) => {
- const actual = +getActualByUtilityMonth(utility, m, co).toFixed(0);
+ const actual = +getActual(m).toFixed(0);
  const delta = actual - b;
  const pct = b > 0 ? +(delta / b * 100).toFixed(1) : 0;
  return { name: MONTHS[m], month: m, budget: b, actual, delta, pct };
@@ -2584,6 +2639,23 @@ function UtilityBudgetTab({ utility }) {
  {hasFutures && <> Il pulsante <strong style={{ color: meta.color }}>Genera Budget 2026 da Futures</strong> calcola il budget usando i consumi 2025 e i prezzi futures 2026 ({utility === "energia" ? "EEX Italian Power" : "ICE Dutch TTF"}), poi puoi affinare i valori manualmente.</>}
  </div>
 
+ {/* Device selector for E&G */}
+ {isEG && devices.length > 0 && (
+ <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, background: C.card, borderRadius: 10, padding: "10px 14px", border: `1px solid ${C.border}` }}>
+ <span style={{ fontSize: 11, fontWeight: 700, color: C.text, whiteSpace: "nowrap" }}>Punto di fornitura:</span>
+ <select value={selectedDevice} onChange={e => setSelectedDevice(e.target.value)}
+  style={{ flex: 1, maxWidth: 420, padding: "6px 10px", borderRadius: 6, border: `1px solid ${meta.color}55`, background: selectedDevice !== "all" ? `${meta.color}08` : C.card, color: C.text, fontSize: 11, fontFamily: "inherit", cursor: "pointer" }}>
+  <option value="all">Tutti i {idLabel} (aggregato)</option>
+  {devices.map(d => <option key={d.id} value={d.id}>{d.id} — {d.city || d.site}</option>)}
+ </select>
+ {selectedDevice !== "all" && (
+  <span style={{ fontSize: 10, color: meta.color, fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: `${meta.color}15` }}>
+   {idLabel}: {selectedDevice.slice(-6)}
+  </span>
+ )}
+ </div>
+ )}
+
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 20 }}>
  <KPICard label="Budget Annuale" value={fmtEuro(totB, 0)} color={meta.color} />
  <KPICard label="Actual" value={fmtEuro(totA, 0)} color={C.accent} />
@@ -2604,7 +2676,7 @@ function UtilityBudgetTab({ utility }) {
  </div>
 
  {/* Chart */}
- <ChartCard title={`Budget vs Actual — ${meta.label}`} style={{ marginBottom: 20 }}>
+ <ChartCard title={`Budget vs Actual — ${meta.label}${selectedDevice !== "all" && isEG ? ` — ${selectedDevice}` : ""}`} style={{ marginBottom: 20 }}>
  <ResponsiveContainer width="100%" height={260}>
  <ComposedChart data={comparison}>
  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
@@ -2900,6 +2972,20 @@ function ForecastDashboard() {
  const { co } = useCompanyFilter();
  const [activeUtility, setActiveUtility] = useState("energia");
  const [forecastTab, setForecastTab] = useState("forecast");
+ const [savedScenarios, setSavedScenarios] = useState([
+  // Demo saved scenarios
+  { id: 1, name: "Scenario Conservativo", utility: "energia", date: "2026-01-15 09:30", priceAdj: -10, consumoAdj: 5, oneriAdj: 0, totScenario: 468200, totBase: 502100, delta: -33900, months: Array.from({length:12}, (_,m) => ({ name: MONTHS[m], scenario: 35000 + Math.round(Math.random()*10000), base: 38000 + Math.round(Math.random()*10000) })) },
+  { id: 2, name: "Rincaro Gas Q4", utility: "gas", date: "2026-01-20 14:15", priceAdj: 25, consumoAdj: 0, oneriAdj: 5, totScenario: 245800, totBase: 198400, delta: 47400, months: Array.from({length:12}, (_,m) => ({ name: MONTHS[m], scenario: 18000 + Math.round(Math.random()*8000), base: 15000 + Math.round(Math.random()*6000) })) },
+  { id: 3, name: "Efficienza Energetica", utility: "energia", date: "2026-02-05 11:00", priceAdj: 0, consumoAdj: -15, oneriAdj: -5, totScenario: 412500, totBase: 502100, delta: -89600, months: Array.from({length:12}, (_,m) => ({ name: MONTHS[m], scenario: 30000 + Math.round(Math.random()*9000), base: 38000 + Math.round(Math.random()*10000) })) },
+ ]);
+
+ const handleSaveScenario = (scenario) => {
+  setSavedScenarios(prev => [{ ...scenario, id: Date.now(), date: new Date().toLocaleString("it-IT", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) }, ...prev]);
+ };
+
+ const handleDeleteScenario = (id) => {
+  setSavedScenarios(prev => prev.filter(s => s.id !== id));
+ };
 
  return (
  <div>
@@ -2910,6 +2996,7 @@ function ForecastDashboard() {
  <TabBar tabs={[
   { key: "forecast", label: "Forecast Base" },
   { key: "scenari", label: "Scenari What-If" },
+  { key: "storico", label: `Storico Scenari (${savedScenarios.length})` },
  ]} active={forecastTab} onChange={setForecastTab} style={{ marginBottom: 20 }} />
 
  {forecastTab === "forecast" && <>
@@ -2978,12 +3065,14 @@ function ForecastDashboard() {
  <ForecastUtilityDetail utility={activeUtility} />
  </>}
 
- {forecastTab === "scenari" && <ScenarioBuilder />}
+ {forecastTab === "scenari" && <ScenarioBuilder onSave={handleSaveScenario} />}
+
+ {forecastTab === "storico" && <ScenarioHistory scenarios={savedScenarios} onDelete={handleDeleteScenario} onLoad={(s) => { setForecastTab("scenari"); }} />}
  </div>
  );
 }
 
-function ScenarioBuilder() {
+function ScenarioBuilder({ onSave }) {
  const { co } = useCompanyFilter();
  const [utility, setUtility] = useState("energia");
  const meta = UTILITY_META[utility];
@@ -2999,6 +3088,7 @@ function ScenarioBuilder() {
  const [customConsumi, setCustomConsumi] = useState(() =>
   Array.from({ length: 12 }, (_, m) => Math.round(getConsumoByUtilityMonth(utility, m, co, 2025)))
  );
+ const [saved, setSaved] = useState(false);
 
  // Reset when utility changes
  useEffect(() => {
@@ -3074,6 +3164,32 @@ function ScenarioBuilder() {
       }}>{um.label}</button>
      );
     })}
+   </div>
+
+   {/* Scenario name + save */}
+   <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 18, background: C.card, borderRadius: 10, padding: "10px 16px", border: `1px solid ${C.border}` }}>
+    <span style={{ fontSize: 11, fontWeight: 700, color: C.text, whiteSpace: "nowrap" }}>Nome scenario:</span>
+    <input value={scenarioName} onChange={e => { setScenarioName(e.target.value); setSaved(false); }}
+     style={{ flex: 1, padding: "7px 12px", borderRadius: 6, border: `1px solid ${C.border}`, fontSize: 12, fontFamily: "inherit", color: C.text, maxWidth: 350 }} />
+    <button onClick={() => {
+     if (!scenarioName.trim()) return;
+     onSave && onSave({
+      name: scenarioName, utility, priceAdj, consumoAdj, oneriAdj,
+      totScenario: scenarioMonths.reduce((s, d) => s + d.scenario, 0),
+      totBase: scenarioMonths.reduce((s, d) => s + d.base, 0),
+      delta: scenarioMonths.reduce((s, d) => s + d.scenario, 0) - scenarioMonths.reduce((s, d) => s + d.base, 0),
+      customPrices: [...customPrices], customConsumi: [...customConsumi],
+      months: scenarioMonths.map(d => ({ name: d.name, scenario: d.scenario, base: d.base, costoMateria: d.costoMateria, costoOneri: d.costoOneri, consumo: d.consumo, prezzo: d.prezzo, actual2025: d.actual2025 })),
+     });
+     setSaved(true);
+     setTimeout(() => setSaved(false), 3000);
+    }} style={{
+     padding: "8px 20px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "inherit",
+     background: saved ? C.success : `linear-gradient(135deg, ${C.accent}, #224abe)`,
+     color: "#fff", fontSize: 12, fontWeight: 700, boxShadow: "0 2px 6px rgba(78,115,223,0.3)", transition: "all 0.2s",
+    }}>
+     {saved ? "Salvato" : "Salva Scenario"}
+    </button>
    </div>
 
    {/* Quick adjustments */}
@@ -3187,13 +3303,196 @@ function ScenarioBuilder() {
  );
 }
 
+function ScenarioHistory({ scenarios, onDelete, onLoad }) {
+ const [expandedId, setExpandedId] = useState(null);
+ const [filterUtility, setFilterUtility] = useState("all");
+
+ const filtered = filterUtility === "all" ? scenarios : scenarios.filter(s => s.utility === filterUtility);
+ const energyCount = scenarios.filter(s => s.utility === "energia").length;
+ const gasCount = scenarios.filter(s => s.utility === "gas").length;
+
+ return (
+  <div>
+   <SectionTitle sub={`${scenarios.length} scenari salvati — seleziona per consultare i dettagli`}>Storico Scenari What-If</SectionTitle>
+
+   {/* KPI row */}
+   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 18 }}>
+    <KPICard label="Scenari Totali" value={scenarios.length} color={C.accent} />
+    <KPICard label="Energia" value={energyCount} color={C.energy} />
+    <KPICard label="Gas" value={gasCount} color={C.gas} />
+   </div>
+
+   {/* Filter */}
+   <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
+    {[{ k: "all", l: "Tutti" }, { k: "energia", l: "Energia" }, { k: "gas", l: "Gas" }].map(f => (
+     <button key={f.k} onClick={() => setFilterUtility(f.k)} style={{
+      padding: "6px 14px", borderRadius: 6, border: `1px solid ${filterUtility === f.k ? C.accent : C.border}`,
+      background: filterUtility === f.k ? C.accent : C.card, color: filterUtility === f.k ? "#fff" : C.textMuted,
+      fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+     }}>{f.l} {f.k !== "all" ? `(${scenarios.filter(s => s.utility === f.k).length})` : ""}</button>
+    ))}
+   </div>
+
+   {filtered.length === 0 && (
+    <div style={{ textAlign: "center", padding: 40, color: C.textDim, fontSize: 13 }}>
+     Nessuno scenario salvato{filterUtility !== "all" ? ` per ${UTILITY_META[filterUtility]?.label}` : ""}. Vai alla tab "Scenari What-If" per crearne uno.
+    </div>
+   )}
+
+   {/* Scenario cards */}
+   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    {filtered.map(s => {
+     const meta = UTILITY_META[s.utility];
+     const isExpanded = expandedId === s.id;
+     const deltaPct = s.totBase > 0 ? +(s.delta / s.totBase * 100).toFixed(1) : 0;
+     return (
+      <div key={s.id} style={{
+       background: C.card, borderRadius: 12, border: `1px solid ${isExpanded ? meta.color : C.border}`,
+       borderLeft: `4px solid ${meta.color}`, overflow: "hidden", transition: "all 0.2s",
+       boxShadow: isExpanded ? `0 4px 16px ${meta.color}22` : "0 1px 3px rgba(0,0,0,0.06)",
+      }}>
+       {/* Header */}
+       <div onClick={() => setExpandedId(isExpanded ? null : s.id)} style={{ padding: "14px 18px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+         <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{s.name}</div>
+          <div style={{ fontSize: 10, color: C.textDim, marginTop: 2 }}>
+           <Badge color={meta.color} bg={`${meta.color}15`}>{meta.label}</Badge>
+           <span style={{ marginLeft: 8 }}>{s.date}</span>
+          </div>
+         </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+         <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: meta.color }}>{fmtEuro(s.totScenario, 0)}</div>
+          <div style={{ fontSize: 10, color: s.delta > 0 ? C.danger : C.success, fontWeight: 600 }}>
+           {s.delta > 0 ? "+" : ""}{fmtEuro(s.delta, 0)} ({deltaPct > 0 ? "+" : ""}{deltaPct}% vs base)
+          </div>
+         </div>
+         <span style={{ fontSize: 16, color: C.textDim, transition: "transform 0.2s", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+        </div>
+       </div>
+
+       {/* Expanded detail */}
+       {isExpanded && (
+        <div style={{ borderTop: `1px solid ${C.border}`, padding: "16px 18px" }}>
+         {/* Parameters */}
+         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 16 }}>
+          <div style={{ background: `${meta.color}08`, borderRadius: 8, padding: "10px 12px", border: `1px solid ${meta.color}15` }}>
+           <div style={{ fontSize: 9, color: C.textDim, fontWeight: 600, textTransform: "uppercase" }}>Prezzi</div>
+           <div style={{ fontSize: 16, fontWeight: 800, color: s.priceAdj > 0 ? C.danger : s.priceAdj < 0 ? C.success : C.text }}>{s.priceAdj > 0 ? "+" : ""}{s.priceAdj}%</div>
+          </div>
+          <div style={{ background: `${C.accent}08`, borderRadius: 8, padding: "10px 12px", border: `1px solid ${C.accent}15` }}>
+           <div style={{ fontSize: 9, color: C.textDim, fontWeight: 600, textTransform: "uppercase" }}>Consumi</div>
+           <div style={{ fontSize: 16, fontWeight: 800, color: s.consumoAdj > 0 ? C.danger : s.consumoAdj < 0 ? C.success : C.text }}>{s.consumoAdj > 0 ? "+" : ""}{s.consumoAdj}%</div>
+          </div>
+          <div style={{ background: `${C.warn}08`, borderRadius: 8, padding: "10px 12px", border: `1px solid ${C.warn}15` }}>
+           <div style={{ fontSize: 9, color: C.textDim, fontWeight: 600, textTransform: "uppercase" }}>Oneri</div>
+           <div style={{ fontSize: 16, fontWeight: 800, color: s.oneriAdj > 0 ? C.danger : s.oneriAdj < 0 ? C.success : C.text }}>{s.oneriAdj > 0 ? "+" : ""}{s.oneriAdj}%</div>
+          </div>
+          <div style={{ background: `${C.success}08`, borderRadius: 8, padding: "10px 12px", border: `1px solid ${C.success}15` }}>
+           <div style={{ fontSize: 9, color: C.textDim, fontWeight: 600, textTransform: "uppercase" }}>Base Forecast</div>
+           <div style={{ fontSize: 16, fontWeight: 800, color: C.text }}>{fmtEuro(s.totBase, 0)}</div>
+          </div>
+         </div>
+
+         {/* Monthly chart bars */}
+         {s.months && s.months.length > 0 && (
+          <div style={{ background: `${C.bg}`, borderRadius: 10, padding: 14, marginBottom: 14 }}>
+           <div style={{ fontSize: 11, fontWeight: 700, color: C.text, marginBottom: 10 }}>Confronto Mensile: Scenario vs Base</div>
+           <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 120 }}>
+            {s.months.map((d, i) => {
+             const max = Math.max(...s.months.map(x => Math.max(x.scenario, x.base)));
+             const hS = max > 0 ? (d.scenario / max) * 100 : 0;
+             const hB = max > 0 ? (d.base / max) * 100 : 0;
+             return (
+              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+               <div style={{ display: "flex", gap: 1, alignItems: "flex-end", width: "100%", justifyContent: "center" }}>
+                <div style={{ width: "40%", height: hS, background: meta.color, borderRadius: "2px 2px 0 0" }} title={`Scenario ${d.name}: ${fmtEuro(d.scenario, 0)}`} />
+                <div style={{ width: "40%", height: hB, background: C.textDim + "55", borderRadius: "2px 2px 0 0" }} title={`Base ${d.name}: ${fmtEuro(d.base, 0)}`} />
+               </div>
+               <span style={{ fontSize: 8, color: C.textDim }}>{d.name}</span>
+              </div>
+             );
+            })}
+           </div>
+           <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: meta.color }} /><span style={{ color: C.textMuted }}>Scenario</span></div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: C.textDim + "55" }} /><span style={{ color: C.textMuted }}>Forecast Base</span></div>
+           </div>
+          </div>
+         )}
+
+         {/* Monthly detail table */}
+         {s.months && s.months.length > 0 && (
+          <div style={{ overflowX: "auto", marginBottom: 14 }}>
+           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+            <thead>
+             <tr>
+              {["Mese", "Scenario €", "Base €", "Delta €", "Δ %"].map(h => (
+               <th key={h} style={{ padding: "6px 8px", textAlign: h === "Mese" ? "left" : "right", fontWeight: 700, color: C.textDim, borderBottom: `2px solid ${C.border}`, fontSize: 10 }}>{h}</th>
+              ))}
+             </tr>
+            </thead>
+            <tbody>
+             {s.months.map((d, i) => {
+              const delta = d.scenario - d.base;
+              const pct = d.base > 0 ? +(delta / d.base * 100).toFixed(1) : 0;
+              return (
+               <tr key={i} style={{ borderBottom: `1px solid ${C.border}22` }}>
+                <td style={{ padding: "5px 8px", fontWeight: 600 }}>{d.name}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: 600, color: meta.color }}>{fmtEuro(d.scenario, 0)}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", color: C.textMuted }}>{fmtEuro(d.base, 0)}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: 600, color: delta > 0 ? C.danger : C.success }}>{delta > 0 ? "+" : ""}{fmtEuro(delta, 0)}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", fontSize: 10, color: delta > 0 ? C.danger : C.success }}>{pct > 0 ? "+" : ""}{pct}%</td>
+               </tr>
+              );
+             })}
+             <tr style={{ borderTop: `2px solid ${C.border}` }}>
+              <td style={{ padding: "6px 8px", fontWeight: 800 }}>TOTALE</td>
+              <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 800, color: meta.color }}>{fmtEuro(s.totScenario, 0)}</td>
+              <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 700, color: C.textMuted }}>{fmtEuro(s.totBase, 0)}</td>
+              <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 800, color: s.delta > 0 ? C.danger : C.success }}>{s.delta > 0 ? "+" : ""}{fmtEuro(s.delta, 0)}</td>
+              <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 700, color: s.delta > 0 ? C.danger : C.success }}>{s.totBase > 0 ? `${deltaPct > 0 ? "+" : ""}${deltaPct}%` : "—"}</td>
+             </tr>
+            </tbody>
+           </table>
+          </div>
+         )}
+
+         {/* Actions */}
+         <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => onDelete(s.id)} style={{
+           padding: "7px 16px", borderRadius: 6, border: `1px solid ${C.danger}44`,
+           background: `${C.danger}08`, color: C.danger, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+          }}>Elimina Scenario</button>
+         </div>
+        </div>
+       )}
+      </div>
+     );
+    })}
+   </div>
+  </div>
+ );
+}
+
 function ForecastUtilityDetail({ utility }) {
- const { co, energyData, gasData } = useCompanyFilter();
+ const { co, energyData, gasData, pods, pdrs } = useCompanyFilter();
  const meta = UTILITY_META[utility];
  const futures = FUTURES_PRICES[utility];
  const unit = utility === "energia" ? "kWh" : "Smc";
  const sourceData = utility === "energia" ? energyData : gasData;
  const { preset, setPreset, filtered: filtData, customFrom, setCustomFrom, customTo, setCustomTo } = usePeriodFilter(sourceData);
+ const devices = utility === "energia" ? pods : pdrs;
+ const idLabel = utility === "energia" ? "POD" : "PDR";
+
+ const [selectedDevice, setSelectedDevice] = useState("all");
+
+ // Device-aware getters
+ const getAct = (m, anno) => selectedDevice === "all" ? getActualByUtilityMonth(utility, m, co, anno) : getActualByDevice(utility, selectedDevice, m, co, anno);
+ const getCons = (m, anno) => selectedDevice === "all" ? getConsumoByUtilityMonth(utility, m, co, anno) : getConsumoByDevice(utility, selectedDevice, m, co, anno);
+ const getOner = (m, anno) => selectedDevice === "all" ? getAltriOneriByMonth(utility, m, co, anno) : getAltriOneriByDevice(utility, selectedDevice, m, co, anno);
 
  // Q1 2026 (Gen-Mar) = consolidato, Apr-Dic = forecast
  const CONSOLIDATO_END = 2; // index 0=Gen, 1=Feb, 2=Mar → last consolidato month
@@ -3202,22 +3501,22 @@ function ForecastUtilityDetail({ utility }) {
   const isConsolidato = m <= CONSOLIDATO_END;
 
   // For consolidato months: use actual 2026 data
-  const actual2026 = getActualByUtilityMonth(utility, m, co, 2026);
-  const consumo2026 = getConsumoByUtilityMonth(utility, m, co, 2026);
+  const actual2026 = getAct(m, 2026);
+  const consumo2026 = getCons(m, 2026);
 
   // For forecast months: use 2025 consumi × futures 2026 prices
-  const consumo2025 = getConsumoByUtilityMonth(utility, m, co, 2025);
+  const consumo2025 = getCons(m, 2025);
   const prezzoFuturesMWh = futures.monthly[m];
   const prezzoPerUnit = futures.toUnit(prezzoFuturesMWh);
   const costoMateriaFcast = consumo2025 * prezzoPerUnit;
-  const altriOneri2025 = getAltriOneriByMonth(utility, m, co, 2025);
-  const consumoCorr2025 = getConsumoByUtilityMonth(utility, m, co, 2025);
+  const altriOneri2025 = getOner(m, 2025);
+  const consumoCorr2025 = getCons(m, 2025);
   const ratioAltriOneri = consumoCorr2025 > 0 ? altriOneri2025 / consumoCorr2025 : 0;
   const costoOneriFcast = consumo2025 * ratioAltriOneri;
   const totaleForecast = costoMateriaFcast + costoOneriFcast;
 
   // Actual 2025 same month for YoY comparison
-  const actual2025 = getActualByUtilityMonth(utility, m, co, 2025);
+  const actual2025 = getAct(m, 2025);
 
   // The "value" column: consolidato uses real 2026 data, forecast uses calculated
   const valore2026 = isConsolidato ? actual2026 : +totaleForecast.toFixed(0);
@@ -3237,7 +3536,7 @@ function ForecastUtilityDetail({ utility }) {
    forecastMateria: !isConsolidato ? +costoMateriaFcast.toFixed(0) : 0,
    forecastOneri: !isConsolidato ? +costoOneriFcast.toFixed(0) : 0,
   };
- }), [utility, co]);
+ }), [utility, co, selectedDevice]);
 
  const consolidatoMonths = forecastMonths.filter(m => m.isConsolidato);
  const forecastOnlyMonths = forecastMonths.filter(m => !m.isConsolidato);
@@ -3251,9 +3550,26 @@ function ForecastUtilityDetail({ utility }) {
 
  return (
  <div>
- <SectionTitle sub={`Gen–Mar 2026 consolidato + Apr–Dic 2026 forecast (${futures.label})`}>
+ <SectionTitle sub={`Gen–Mar 2026 consolidato + Apr–Dic 2026 forecast (${futures.label})${selectedDevice !== "all" ? ` — ${selectedDevice}` : ""}`}>
  Forecast {meta.label} — 2026
  </SectionTitle>
+
+ {/* Device selector */}
+ {devices.length > 0 && (
+ <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, background: C.card, borderRadius: 10, padding: "10px 14px", border: `1px solid ${C.border}` }}>
+ <span style={{ fontSize: 11, fontWeight: 700, color: C.text, whiteSpace: "nowrap" }}>Punto di fornitura:</span>
+ <select value={selectedDevice} onChange={e => setSelectedDevice(e.target.value)}
+  style={{ flex: 1, maxWidth: 420, padding: "6px 10px", borderRadius: 6, border: `1px solid ${meta.color}55`, background: selectedDevice !== "all" ? `${meta.color}08` : C.card, color: C.text, fontSize: 11, fontFamily: "inherit", cursor: "pointer" }}>
+  <option value="all">Tutti i {idLabel} (aggregato)</option>
+  {devices.map(d => <option key={d.id} value={d.id}>{d.id} — {d.city || d.site}</option>)}
+ </select>
+ {selectedDevice !== "all" && (
+  <span style={{ fontSize: 10, color: meta.color, fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: `${meta.color}15` }}>
+   {idLabel}: {selectedDevice.slice(-6)}
+  </span>
+ )}
+ </div>
+ )}
 
  <PeriodFilterBar preset={preset} setPreset={setPreset} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
 

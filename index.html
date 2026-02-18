@@ -55,20 +55,10 @@ function buildTimeline(data, monthKey, aggFn) {
 // ─── COMPANIES ────────────────────────────────────────────────────────────────
 const COMPANIES = [
  { id: "all", name: " Tutte le Aziende (Aggregato)", short: "Aggregato" },
- { id: "reale_immobili", name: "REALE IMMOBILI SPA", short: "Reale Immobili", color: "#F59E0B" },
- { id: "reale_mutua", name: "REALE MUTUA ASSICURAZIONI", short: "Reale Mutua", color: "#3B82F6" },
- { id: "blue_assistance", name: "BLUE ASSISTANCE SPA", short: "Blue Assistance", color: "#06B6D4" },
  { id: "edison", name: "EDISON ENERGIA — P.IVA 07760860010", short: "Edison", color: "#E85D04" },
 ];
 
 const PODS = [
- { id: "IT001E00012345", site: "Sede Torino - Via Bertola 48", city: "Torino", power: 100, client: "REALE IMMOBILI SPA", company: "reale_immobili", cdc: "CDC-001", person: "Marco Bianchi", dept: "Facility" },
- { id: "IT001E00054321", site: "Sede Milano - Corso Italia 15", city: "Milano", power: 65, client: "REALE IMMOBILI SPA", company: "reale_immobili", cdc: "CDC-002", person: "Laura Rossi", dept: "Operations" },
- { id: "IT001E00099887", site: "Filiale Roma - Via Veneto 22", city: "Roma", power: 45, client: "REALE IMMOBILI SPA", company: "reale_immobili", cdc: "CDC-003", person: "Paolo Verdi", dept: "Vendite" },
- { id: "IT001E00077001", site: "Sede Torino - Via Corte d'Appello 11", city: "Torino", power: 150, client: "REALE MUTUA ASSICURAZIONI", company: "reale_mutua", cdc: "CDC-010", person: "Anna Colombo", dept: "Direzione Generale" },
- { id: "IT001E00077002", site: "Agenzia Napoli - Via Toledo 88", city: "Napoli", power: 35, client: "REALE MUTUA ASSICURAZIONI", company: "reale_mutua", cdc: "CDC-011", person: "Giuseppe Russo", dept: "Agenzia" },
- { id: "IT001E00088001", site: "Ufficio Torino - Corso Galileo Ferraris 30", city: "Torino", power: 25, client: "BLUE ASSISTANCE SPA", company: "blue_assistance", cdc: "CDC-020", person: "Francesca Marino", dept: "Operations" },
- // Edison PODs (10 punti di prelievo - dati reali 2025)
  { id: "IT001E00041140", site: "Edison — P.IVA 07760860010", city: "—", power: 28, client: "Edison Energia", company: "edison", cdc: "CC-EDI-001", person: "Energy Manager", dept: "Facility" },
  { id: "IT001E01241520", site: "Edison — P.IVA 07760860010", city: "—", power: 3, client: "Edison Energia", company: "edison", cdc: "CC-EDI-001", person: "Energy Manager", dept: "Facility" },
  { id: "IT001E02167194", site: "Edison — P.IVA 07760860010", city: "—", power: 14, client: "Edison Energia", company: "edison", cdc: "CC-EDI-001", person: "Energy Manager", dept: "Facility" },
@@ -81,277 +71,13 @@ const PODS = [
  { id: "IT253E16163274", site: "Edison — P.IVA 07760860010", city: "—", power: 12, client: "Edison Energia", company: "edison", cdc: "CC-EDI-001", person: "Energy Manager", dept: "Facility" },
 ];
 
-const PDRS = [
- { id: "00301000001002", site: "Sede Torino - Via Bertola 48", city: "Torino", client: "REALE IMMOBILI SPA", company: "reale_immobili", distributor: "ITALGAS RETI SPA", cdc: "CDC-001", person: "Marco Bianchi", dept: "Facility" },
- { id: "00301000003456", site: "Sede Milano - Corso Italia 15", city: "Milano", client: "REALE IMMOBILI SPA", company: "reale_immobili", distributor: "UNARETI SPA", cdc: "CDC-002", person: "Laura Rossi", dept: "Operations" },
- { id: "00301000007001", site: "Sede Torino - Via Corte d'Appello 11", city: "Torino", client: "REALE MUTUA ASSICURAZIONI", company: "reale_mutua", distributor: "ITALGAS RETI SPA", cdc: "CDC-010", person: "Anna Colombo", dept: "Direzione Generale" },
- { id: "00301000008001", site: "Ufficio Torino - Corso Galileo Ferraris 30", city: "Torino", client: "BLUE ASSISTANCE SPA", company: "blue_assistance", distributor: "ITALGAS RETI SPA", cdc: "CDC-020", person: "Francesca Marino", dept: "Operations" },
-];
+const PDRS = [];
+const MOBILE_LINES = [];
+const FIXED_LINES = [];
+const CONNECTIVITY = [];
+const BUILDINGS = [];
 
-const MOBILE_LINES = [
- { id: "331-621-5488", company: "reale_immobili", profile: "5G Power Executive", person: "Marco Bianchi", dept: "Dirigenza", cdc: "CDC-001", fixedCost: 25.41, services: ["Tim Safe Mobile","5G","VoLTE"] },
- { id: "331-621-5499", company: "reale_immobili", profile: "5G Power Executive", person: "Laura Rossi", dept: "Operations", cdc: "CDC-002", fixedCost: 25.41, services: ["Tim Safe Mobile","5G","Roaming Daily"] },
- { id: "338-912-3344", company: "reale_immobili", profile: "Tim Deluxe XL", person: "Paolo Verdi", dept: "Vendite", cdc: "CDC-003", fixedCost: 25.99, services: ["Tim Safe Mobile","5G"] },
- { id: "338-912-3355", company: "reale_immobili", profile: "Tim Deluxe XL", person: "Anna Neri", dept: "Vendite", cdc: "CDC-003", fixedCost: 25.99, services: ["Tim Safe Mobile"] },
- { id: "320-445-6677", company: "reale_immobili", profile: "5G Power Unlimited", person: "Giulia Ferri", dept: "IT", cdc: "CDC-004", fixedCost: 24.99, services: ["5G","VoLTE","Roaming Daily"] },
- { id: "331-800-1001", company: "reale_mutua", profile: "5G Power Executive", person: "Anna Colombo", dept: "Direzione", cdc: "CDC-010", fixedCost: 25.41, services: ["5G","VoLTE","Tim Safe Mobile"] },
- { id: "331-800-1002", company: "reale_mutua", profile: "Tim Deluxe XL", person: "Giuseppe Russo", dept: "Agenzia", cdc: "CDC-011", fixedCost: 25.99, services: ["5G","Tim Safe Mobile"] },
- { id: "320-900-2001", company: "blue_assistance", profile: "5G Power Unlimited", person: "Francesca Marino", dept: "Operations", cdc: "CDC-020", fixedCost: 24.99, services: ["5G","VoLTE"] },
-];
-
-const FIXED_LINES = [
- { id: "011-5678901", company: "reale_immobili", site: "Sede Torino", service: "TIM Comunica + xDSL Professional", monthlyCost: 79.00, cdc: "CDC-001", person: "IT Dept" },
- { id: "02-87654321", company: "reale_immobili", site: "Sede Milano", service: "TIM Comunica + FTTH", monthlyCost: 95.00, cdc: "CDC-002", person: "IT Dept" },
- { id: "011-9990001", company: "reale_mutua", site: "Sede Torino RM", service: "TIM Comunica + FTTH", monthlyCost: 110.00, cdc: "CDC-010", person: "IT Dept" },
- { id: "011-9990002", company: "blue_assistance", site: "Ufficio Torino BA", service: "TIM Comunica + xDSL", monthlyCost: 55.00, cdc: "CDC-020", person: "IT Dept" },
-];
-
-const CONNECTIVITY = [
- { id: "CIR-TO-001", company: "reale_immobili", site: "Sede Torino", type: "FTTH", band: "1 Gbps", bmg: "100 Mbps", monthlyCost: 120, sla: "Gold", cdc: "CDC-001" },
- { id: "CIR-MI-001", company: "reale_immobili", site: "Sede Milano", type: "FTTH", band: "1 Gbps", bmg: "200 Mbps", monthlyCost: 180, sla: "Platinum", cdc: "CDC-002" },
- { id: "CIR-RM-001", company: "reale_immobili", site: "Filiale Roma", type: "FTTC", band: "200 Mbps", bmg: "20 Mbps", monthlyCost: 65, sla: "Silver", cdc: "CDC-003" },
- { id: "CIR-TO-RM1", company: "reale_mutua", site: "Sede Torino RM", type: "FTTH", band: "1 Gbps", bmg: "200 Mbps", monthlyCost: 190, sla: "Platinum", cdc: "CDC-010" },
- { id: "CIR-NA-RM1", company: "reale_mutua", site: "Agenzia Napoli", type: "FTTC", band: "200 Mbps", bmg: "20 Mbps", monthlyCost: 55, sla: "Silver", cdc: "CDC-011" },
- { id: "CIR-TO-BA1", company: "blue_assistance", site: "Ufficio Torino BA", type: "FTTC", band: "100 Mbps", bmg: "10 Mbps", monthlyCost: 45, sla: "Silver", cdc: "CDC-020" },
-];
-
-// ─── BUILDINGS ────────────────────────────────────────────────────────────────
-const BUILDINGS = [
- {
- id: "BLD-TO-01", name: "Sede Torino - Via Bertola 48", address: "Via Bertola 48, 10121 Torino", city: "Torino", sqm: 4200, floors: 6, company: "reale_immobili",
- devices: {
- pods: ["IT001E00012345"],
- pdrs: ["00301000001002"],
- fixedLines: ["011-5678901"],
- connectivity: ["CIR-TO-001"],
- mobileLines: ["331-621-5488"],
- },
- },
- {
- id: "BLD-MI-01", name: "Sede Milano - Corso Italia 15", address: "Corso Italia 15, 20122 Milano", city: "Milano", sqm: 2800, floors: 4, company: "reale_immobili",
- devices: {
- pods: ["IT001E00054321"],
- pdrs: ["00301000003456"],
- fixedLines: ["02-87654321"],
- connectivity: ["CIR-MI-001"],
- mobileLines: ["331-621-5499"],
- },
- },
- {
- id: "BLD-RM-01", name: "Filiale Roma - Via Veneto 22", address: "Via Veneto 22, 00187 Roma", city: "Roma", sqm: 1200, floors: 2, company: "reale_immobili",
- devices: {
- pods: ["IT001E00099887"],
- pdrs: [],
- fixedLines: [],
- connectivity: ["CIR-RM-001"],
- mobileLines: ["338-912-3344", "338-912-3355"],
- },
- },
- {
- id: "BLD-TO-RM", name: "Sede Torino - Via Corte d'Appello 11", address: "Via Corte d'Appello 11, 10122 Torino", city: "Torino", sqm: 8500, floors: 8, company: "reale_mutua",
- devices: {
- pods: ["IT001E00077001"],
- pdrs: ["00301000007001"],
- fixedLines: ["011-9990001"],
- connectivity: ["CIR-TO-RM1"],
- mobileLines: ["331-800-1001"],
- },
- },
- {
- id: "BLD-NA-RM", name: "Agenzia Napoli - Via Toledo 88", address: "Via Toledo 88, 80134 Napoli", city: "Napoli", sqm: 650, floors: 1, company: "reale_mutua",
- devices: {
- pods: ["IT001E00077002"],
- pdrs: [],
- fixedLines: [],
- connectivity: ["CIR-NA-RM1"],
- mobileLines: ["331-800-1002"],
- },
- },
- {
- id: "BLD-TO-BA", name: "Ufficio Torino - Corso G. Ferraris 30", address: "Corso Galileo Ferraris 30, 10128 Torino", city: "Torino", sqm: 900, floors: 2, company: "blue_assistance",
- devices: {
- pods: ["IT001E00088001"],
- pdrs: ["00301000008001"],
- fixedLines: ["011-9990002"],
- connectivity: ["CIR-TO-BA1"],
- mobileLines: ["320-900-2001"],
- },
- },
-];
-
-function generateEnergyData() {
- const data = [];
- // Energy prices trend: 2022 peak (energy crisis), declining since
- const yearPriceMult = { 2022: 1.45, 2023: 1.20, 2024: 1.05, 2025: 1.00, 2026: 0.95 };
- const yearGrowth = { 2022: 0.92, 2023: 0.96, 2024: 1.00, 2025: 1.03, 2026: 1.04 };
- for (const anno of YEARS) {
- const maxMonth = anno === 2026 ? 3 : 12; // 2026: only Jan-Mar (Q1 consolidato)
- for (let m = 0; m < maxMonth; m++) {
- for (const pod of PODS) {
- const season = Math.sin((m - 6) * Math.PI / 6) * 0.3;
- const base = pod.power * 350 * (1 + season) * (yearGrowth[anno] || 1);
- const consumo = Math.round(base * (0.9 + Math.random() * 0.2));
- const f1pct = 0.45 + Math.random() * 0.05;
- const f2pct = 0.25 + Math.random() * 0.05;
- const f3pct = 1 - f1pct - f2pct;
- const isEstimated = Math.random() < 0.15;
- const pm = yearPriceMult[anno] || 1;
- const prezzoF1 = (0.12 + Math.random() * 0.02) * pm;
- const prezzoF2 = (0.10 + Math.random() * 0.02) * pm;
- const prezzoF3 = (0.08 + Math.random() * 0.015) * pm;
- const energyCost = consumo * f1pct * prezzoF1 + consumo * f2pct * prezzoF2 + consumo * f3pct * prezzoF3;
- const dispacciamento = consumo * 0.012 * pm;
- const distribuzione = consumo * 0.018;
- const oneriSistema = consumo * 0.025 * pm;
- const accise = consumo * 0.0125;
- const totalNoVat = energyCost + dispacciamento + distribuzione + oneriSistema + accise;
- const iva = totalNoVat * 0.22;
- const conguaglio = (Math.random() < 0.08) ? (Math.random() - 0.5) * 2000 : 0;
- const emissionMonth = m + (Math.random() < 0.2 ? 1 : 0);
- data.push({
- anno,
- pod: pod.id, site: pod.site, city: pod.city, client: pod.client, company: pod.company,
- meseConsumi: m, meseEmissione: Math.min(emissionMonth, 11),
- consumoTotale: consumo,
- consumoF1: Math.round(consumo * f1pct),
- consumoF2: Math.round(consumo * f2pct),
- consumoF3: Math.round(consumo * f3pct),
- potenzaMax: Math.round(pod.power * (0.7 + Math.random() * 0.3)),
- prezzoF1: +prezzoF1.toFixed(4), prezzoF2: +prezzoF2.toFixed(4), prezzoF3: +prezzoF3.toFixed(4),
- importoEnergia: +energyCost.toFixed(2),
- dispacciamento: +dispacciamento.toFixed(2),
- distribuzione: +distribuzione.toFixed(2),
- oneriSistema: +oneriSistema.toFixed(2),
- accise: +accise.toFixed(2),
- iva: +iva.toFixed(2),
- conguaglio: +conguaglio.toFixed(2),
- totaleNettoIVA: +(totalNoVat + conguaglio).toFixed(2),
- totaleFattura: +(totalNoVat + conguaglio + iva).toFixed(2),
- isEstimated,
- consumiDefinitivi: isEstimated ? "Alg. Stima" : (Math.random() < 0.5 ? "Curva Distrib." : "XML Distrib."),
- tipoDocumento: conguaglio < -500 ? "S" : "F",
- });
- }
- }
- }
- return data;
-}
-
-function generateGasData() {
- const data = [];
- const yearPriceMult = { 2022: 1.60, 2023: 1.25, 2024: 1.08, 2025: 1.00, 2026: 0.93 };
- for (const anno of YEARS) {
- const maxMonth = anno === 2026 ? 3 : 12;
- for (let m = 0; m < maxMonth; m++) {
- for (const pdr of PDRS) {
- const heating = m >= 10 || m <= 3 ? 1.8 : (m >= 4 && m <= 9 ? 0.3 : 0.8);
- const consumo = Math.round(800 * heating * (0.85 + Math.random() * 0.3));
- const pm = yearPriceMult[anno] || 1;
- const qvMese = +(consumo * 0.35 * pm).toFixed(2);
- const qfMese = 18.50;
- const trasporto = +(consumo * 0.08).toFixed(2);
- const oneri = +(consumo * 0.06 * pm).toFixed(2);
- const accise = +(consumo * 0.04).toFixed(2);
- const total = +(qvMese + qfMese + trasporto + oneri + accise).toFixed(2);
- const ivaAmt = +(total * 0.22).toFixed(2);
- data.push({
- anno,
- pdr: pdr.id, site: pdr.site, city: pdr.city, client: pdr.client, company: pdr.company, distributor: pdr.distributor,
- meseConsumi: m, meseEmissione: Math.min(m + (Math.random() < 0.15 ? 1 : 0), 11),
- consumoSmc: consumo, pcsMedio: +(38.1 + Math.random() * 0.8).toFixed(2),
- qvMese, qfMese, trasporto, oneri, accise,
- totaleImponibile: total, iva: ivaAmt, totaleFattura: +(total + ivaAmt).toFixed(2),
- tipoFattura: "Fattura ordinaria",
- });
- }
- }
- }
- return data;
-}
-
-function generateMobileData() {
- const data = [];
- const companyIds = [...new Set(MOBILE_LINES.map(l => l.company))];
- for (const anno of YEARS) {
- const maxMonth = anno === 2026 ? 3 : 12;
- for (let m = 0; m < maxMonth; m++) {
- for (const cid of companyIds) {
- const lines = MOBILE_LINES.filter(l => l.company === cid);
- const numLines = lines.length + Math.floor(Math.random() * 2);
- const spesaFissa = lines.reduce((s, l) => s + l.fixedCost, 0) + Math.random() * 30;
- const spesaVariabile = (20 + Math.random() * 15) * lines.length / 3;
- const altriAddebiti = (8 + Math.random() * 10) * lines.length / 3;
- const subtotal = spesaFissa + spesaVariabile + altriAddebiti;
- const ivaAmt = +(subtotal * 0.22).toFixed(2);
- data.push({
- anno, company: cid,
- meseConsumi: m, meseEmissione: Math.min(m + (Math.random() < 0.1 ? 1 : 0), 11),
- numLinee: numLines,
- spesaFissa: +spesaFissa.toFixed(2),
- spesaVariabile: +spesaVariabile.toFixed(2),
- altriAddebiti: +altriAddebiti.toFixed(2),
- iva: ivaAmt,
- totaleFattura: +(subtotal + ivaAmt).toFixed(2),
- });
- }
- }
- }
- return data;
-}
-
-function generateFixedData() {
- const data = [];
- const companyIds = [...new Set(FIXED_LINES.map(l => l.company))];
- for (const anno of YEARS) {
- const maxMonth = anno === 2026 ? 3 : 12;
- for (let m = 0; m < maxMonth; m++) {
- for (const cid of companyIds) {
- const lines = FIXED_LINES.filter(l => l.company === cid);
- const spesaFissa = lines.reduce((s, l) => s + l.monthlyCost, 0);
- const prodotti = 12 + Math.random() * 8;
- const altri = 2 + Math.random() * 3;
- const sub = spesaFissa + prodotti + altri;
- data.push({
- anno, company: cid,
- meseConsumi: m, meseEmissione: m,
- numLinee: lines.length,
- spesaFissa: +spesaFissa.toFixed(2),
- prodotti: +prodotti.toFixed(2),
- altriAddebiti: +altri.toFixed(2),
- iva: +(sub * 0.22).toFixed(2),
- totaleFattura: +(sub * 1.22).toFixed(2),
- });
- }
- }
- }
- return data;
-}
-
-function generateConnData() {
- const data = [];
- const companyIds = [...new Set(CONNECTIVITY.map(c => c.company))];
- for (const anno of YEARS) {
- const maxMonth = anno === 2026 ? 3 : 12;
- for (let m = 0; m < maxMonth; m++) {
- for (const cid of companyIds) {
- const conns = CONNECTIVITY.filter(c => c.company === cid);
- const total = conns.reduce((s, c) => s + c.monthlyCost, 0);
- data.push({
- anno, company: cid,
- meseConsumi: m, meseEmissione: m,
- numCollegamenti: conns.length,
- canoni: total,
- iva: +(total * 0.22).toFixed(2),
- totaleFattura: +(total * 1.22).toFixed(2),
- });
- }
- }
- }
- return data;
-}
-
-const ENERGY_DATA = generateEnergyData();
-
+// Generators removed — using real Edison data only
 // ─── EDISON REAL DATA (imported from CSV) ───
 const EDISON_ENERGY = [
  { pod: "IT001E00041140", site: "Edison", city: "—", client: "Edison Energia", company: "edison", anno: 2025, meseConsumi: 0, meseEmissione: 1, consumoTotale: 5680, consumoF1: 2848, consumoF2: 1075, consumoF3: 1757, potenzaMax: 6.2, prezzoF1: 0.184241, prezzoF2: 0.184241, prezzoF3: 0.184241, importoEnergia: 1046.49, dispacciamento: 127.69, distribuzione: 0, oneriSistema: 290.25, accise: 71.00, iva: 337.79, conguaglio: 0.00, totaleNettoIVA: 1535.43, totaleFattura: 1873.22, consumiDefinitivi: true, tipoDocumento: "Fattura" },
@@ -475,33 +201,15 @@ const EDISON_ENERGY = [
  { pod: "IT253E16163274", site: "Edison", city: "—", client: "Edison Energia", company: "edison", anno: 2025, meseConsumi: 10, meseEmissione: 11, consumoTotale: 2009, consumoF1: 863, consumoF2: 391, consumoF3: 755, potenzaMax: 2.2, prezzoF1: 0.152882, prezzoF2: 0.152882, prezzoF3: 0.152882, importoEnergia: 307.14, dispacciamento: 49.44, distribuzione: 0, oneriSistema: 101.64, accise: 25.11, iva: 106.33, conguaglio: 0.00, totaleNettoIVA: 483.33, totaleFattura: 589.66, consumiDefinitivi: true, tipoDocumento: "Fattura" },
  { pod: "IT253E16163274", site: "Edison", city: "—", client: "Edison Energia", company: "edison", anno: 2025, meseConsumi: 11, meseEmissione: 0, consumoTotale: 2242, consumoF1: 954, consumoF2: 408, consumoF3: 880, potenzaMax: 2.5, prezzoF1: 0.155219, prezzoF2: 0.155219, prezzoF3: 0.155219, importoEnergia: 348.00, dispacciamento: 55.78, distribuzione: 0, oneriSistema: 113.74, accise: 28.03, iva: 120.02, conguaglio: 0.00, totaleNettoIVA: 545.55, totaleFattura: 665.57, consumiDefinitivi: true, tipoDocumento: "Fattura" },
 ];
-ENERGY_DATA.push(...EDISON_ENERGY);
-
-const GAS_DATA = generateGasData();
-const MOBILE_DATA = generateMobileData();
-const FIXED_DATA = generateFixedData();
-const CONN_DATA = generateConnData();
+const ENERGY_DATA = [...EDISON_ENERGY];
+const GAS_DATA = [];
+const MOBILE_DATA = [];
+const FIXED_DATA = [];
+const CONN_DATA = [];
 
 // ─── CONTRACTS DATA ──────────────────────────────────────────────────────────
 
-const CONTRACTS = [
- { id: "CTR-EN-2024-001", utility: "energia", provider: "ENEL Energia S.p.A.", type: "Fornitura Energia Elettrica", start: "2024-01-01", end: "2025-12-31", status: "Attivo", company: "reale_immobili", pods: ["IT001E00012345","IT001E00054321","IT001E00099887"], conditions: "Prezzo fisso F1: €0.128/kWh, F2: €0.108/kWh, F3: €0.088/kWh", penalty: "Uscita anticipata: 3% residuo", renewalType: "Tacito rinnovo 12 mesi", referent: "Marco Bianchi", notes: "Rinegoziazione prevista Q3 2025" },
- { id: "CTR-EN-2023-002", utility: "energia", provider: "A2A Energia S.p.A.", type: "Fornitura Energia Elettrica", start: "2023-06-01", end: "2025-05-31", status: "Attivo", company: "reale_mutua", pods: ["IT001E00077001","IT001E00077002"], conditions: "Prezzo indicizzato PUN + spread €0.012/kWh", penalty: "Nessuna", renewalType: "Scadenza naturale", referent: "Anna Colombo", notes: "Valutare switch a prezzo fisso" },
- { id: "CTR-EN-2022-003", utility: "energia", provider: "ENEL Energia S.p.A.", type: "Fornitura Energia Elettrica", start: "2022-01-01", end: "2023-12-31", status: "Scaduto", company: "blue_assistance", pods: ["IT001E00088001"], conditions: "Prezzo fisso €0.145/kWh", penalty: "N/A", renewalType: "N/A", referent: "Francesca Marino", notes: "Rinnovato con CTR-EN-2024-004" },
- { id: "CTR-EN-2024-004", utility: "energia", provider: "Iren Mercato S.p.A.", type: "Fornitura Energia Elettrica", start: "2024-01-01", end: "2026-12-31", status: "Attivo", company: "blue_assistance", pods: ["IT001E00088001"], conditions: "Prezzo fisso €0.098/kWh mono-orario", penalty: "Uscita anticipata: 2% residuo", renewalType: "Tacito rinnovo 24 mesi", referent: "Francesca Marino", notes: "" },
- { id: "CTR-GAS-2024-001", utility: "gas", provider: "Italgas Più S.p.A.", type: "Fornitura Gas Naturale", start: "2024-04-01", end: "2026-03-31", status: "Attivo", company: "reale_immobili", pods: ["00301000001002","00301000003456"], conditions: "CMEM + spread €0.025/Smc, QF €18.50/mese", penalty: "Uscita anticipata: 4% residuo", renewalType: "Tacito rinnovo 12 mesi", referent: "Marco Bianchi", notes: "" },
- { id: "CTR-GAS-2023-002", utility: "gas", provider: "Eni Plenitude S.p.A.", type: "Fornitura Gas Naturale", start: "2023-10-01", end: "2025-09-30", status: "Attivo", company: "reale_mutua", pods: ["00301000007001"], conditions: "Prezzo fisso €0.38/Smc", penalty: "Nessuna", renewalType: "Scadenza naturale", referent: "Anna Colombo", notes: "Monitorare scadenza" },
- { id: "CTR-GAS-2024-003", utility: "gas", provider: "Italgas Più S.p.A.", type: "Fornitura Gas Naturale", start: "2024-01-01", end: "2025-12-31", status: "Attivo", company: "blue_assistance", pods: ["00301000008001"], conditions: "CMEM + spread €0.030/Smc", penalty: "Nessuna", renewalType: "Tacito rinnovo 12 mesi", referent: "Francesca Marino", notes: "" },
- { id: "CTR-MOB-2024-001", utility: "mobile", provider: "TIM S.p.A.", type: "Telefonia Mobile Business", start: "2024-01-01", end: "2026-12-31", status: "Attivo", company: "reale_immobili", pods: [], conditions: "5G Power Executive €25.41/mese, Tim Deluxe XL €25.99/mese, 5G Power Unlimited €24.99/mese", penalty: "€50/linea se cessazione anticipata", renewalType: "Tacito rinnovo 24 mesi", referent: "IT Dept", notes: "8 linee attive" },
- { id: "CTR-MOB-2024-002", utility: "mobile", provider: "TIM S.p.A.", type: "Telefonia Mobile Business", start: "2024-06-01", end: "2027-05-31", status: "Attivo", company: "reale_mutua", pods: [], conditions: "5G Power Executive €25.41/mese, Tim Deluxe XL €25.99/mese", penalty: "€50/linea", renewalType: "Tacito rinnovo 36 mesi", referent: "IT Dept", notes: "2 linee" },
- { id: "CTR-MOB-2023-003", utility: "mobile", provider: "Vodafone Business", type: "Telefonia Mobile Business", start: "2023-01-01", end: "2025-12-31", status: "Attivo", company: "blue_assistance", pods: [], conditions: "5G Power Unlimited €24.99/mese", penalty: "Nessuna", renewalType: "Scadenza naturale", referent: "IT Dept", notes: "1 linea" },
- { id: "CTR-FIX-2023-001", utility: "fisso", provider: "TIM S.p.A.", type: "Telefonia Fissa + Linee Dati", start: "2023-01-01", end: "2025-12-31", status: "Attivo", company: "reale_immobili", pods: [], conditions: "TIM Comunica + xDSL/FTTH, canoni da €79 a €95/mese", penalty: "Cessazione anticipata 30gg preavviso", renewalType: "Tacito rinnovo 12 mesi", referent: "IT Dept", notes: "2 linee attive" },
- { id: "CTR-FIX-2024-002", utility: "fisso", provider: "TIM S.p.A.", type: "Telefonia Fissa + FTTH", start: "2024-01-01", end: "2026-12-31", status: "Attivo", company: "reale_mutua", pods: [], conditions: "TIM Comunica + FTTH €110/mese", penalty: "Nessuna", renewalType: "Tacito rinnovo 12 mesi", referent: "IT Dept", notes: "" },
- { id: "CTR-FIX-2023-003", utility: "fisso", provider: "TIM S.p.A.", type: "Telefonia Fissa + xDSL", start: "2023-06-01", end: "2025-05-31", status: "Attivo", company: "blue_assistance", pods: [], conditions: "TIM Comunica + xDSL €55/mese", penalty: "Nessuna", renewalType: "Scadenza naturale", referent: "IT Dept", notes: "In scadenza — valutare migrazione FTTH" },
- { id: "CTR-CONN-2024-001", utility: "connettivita", provider: "Fastweb S.p.A.", type: "Circuiti Dati Dedicati", start: "2024-01-01", end: "2026-12-31", status: "Attivo", company: "reale_immobili", pods: [], conditions: "FTTH 1Gbps Gold/Platinum da €120 a €180/mese, FTTC 200M Silver €65/mese", penalty: "Uscita anticipata: 20% residuo", renewalType: "Tacito rinnovo 24 mesi", referent: "IT Dept", notes: "3 circuiti" },
- { id: "CTR-CONN-2023-002", utility: "connettivita", provider: "Fastweb S.p.A.", type: "Circuiti Dati Dedicati", start: "2023-07-01", end: "2026-06-30", status: "Attivo", company: "reale_mutua", pods: [], conditions: "FTTH 1Gbps Platinum €190/mese, FTTC Silver €55/mese", penalty: "15% residuo", renewalType: "Tacito rinnovo 36 mesi", referent: "IT Dept", notes: "2 circuiti" },
- { id: "CTR-CONN-2024-003", utility: "connettivita", provider: "TIM S.p.A.", type: "Circuito Dati", start: "2024-03-01", end: "2026-02-28", status: "Attivo", company: "blue_assistance", pods: [], conditions: "FTTC 100Mbps Silver €45/mese", penalty: "Nessuna", renewalType: "Scadenza naturale", referent: "IT Dept", notes: "" },
-];
+const CONTRACTS = [];
 
 function ContractTab({ utility }) {
  const { co } = useCompanyFilter();
@@ -582,15 +290,9 @@ const TICKET_PRIORITIES = [
 ];
 
 function TicketCenter() {
- const [tickets, setTickets] = useState([
- { id: "TKT-2025-0042", category: "anomalia_fattura", priority: "alta", subject: "Doppia fatturazione POD IT001E00012345 — Gen 2025", device: "IT001E00012345", deviceType: "energia", company: "reale_immobili", status: "Aperto", created: "2025-01-18", assignedTo: "Back Office Energia", notes: "Importo duplicato di €3.240 su fattura 2025-001-EN" },
- { id: "TKT-2025-0041", category: "guasto_fornitura", priority: "alta", subject: "Interruzione connettività sede Milano", device: "CIR-MI-001", deviceType: "connettivita", company: "reale_immobili", status: "In lavorazione", created: "2025-01-15", assignedTo: "Back Office TLC", notes: "Circuito down dalle 08:30, impatto su VPN aziendale" },
- { id: "TKT-2025-0040", category: "variazione_contratto", priority: "media", subject: "Rinegoziazione contratto gas Reale Mutua", device: null, deviceType: "gas", company: "reale_mutua", status: "In lavorazione", created: "2025-01-10", assignedTo: "Back Office Gas", notes: "Contratto in scadenza set 2025 — preparare comparativa" },
- { id: "TKT-2025-0039", category: "lettura_consumi", priority: "bassa", subject: "Autolettura gas PDR 00301000008001", device: "00301000008001", deviceType: "gas", company: "blue_assistance", status: "Risolto", created: "2025-01-05", assignedTo: "Back Office Gas", notes: "Autolettura comunicata: 12.450 Smc" },
- { id: "TKT-2024-0038", category: "nuovo_allacciamento", priority: "media", subject: "Nuova linea mobile per stagista reparto IT", device: null, deviceType: "mobile", company: "reale_immobili", status: "Risolto", created: "2024-12-20", assignedTo: "Back Office TLC", notes: "Profilo Tim Deluxe XL — attivata il 28/12" },
- ]);
+ const [tickets, setTickets] = useState([]);
  const [showNewTicket, setShowNewTicket] = useState(false);
- const [newTicket, setNewTicket] = useState({ category: "", priority: "media", subject: "", device: "", deviceType: "", company: "reale_immobili", notes: "" });
+ const [newTicket, setNewTicket] = useState({ category: "", priority: "media", subject: "", device: "", deviceType: "", company: "edison", notes: "" });
  const [filterStatus, setFilterStatus] = useState("all");
 
  const filteredTickets = filterStatus === "all" ? tickets : tickets.filter(t => t.status === filterStatus);
@@ -601,7 +303,7 @@ function TicketCenter() {
  const t = { ...newTicket, id: `TKT-2025-${String(tickets.length + 43).padStart(4, "0")}`, status: "Aperto", created: new Date().toISOString().slice(0, 10), assignedTo: "Back Office" };
  setTickets(prev => [t, ...prev]);
  setShowNewTicket(false);
- setNewTicket({ category: "", priority: "media", subject: "", device: "", deviceType: "", company: "reale_immobili", notes: "" });
+ setNewTicket({ category: "", priority: "media", subject: "", device: "", deviceType: "", company: "edison", notes: "" });
  };
 
  return (
@@ -3110,12 +2812,7 @@ function ForecastDashboard() {
  const { co } = useCompanyFilter();
  const [activeUtility, setActiveUtility] = useState("energia");
  const [forecastTab, setForecastTab] = useState("forecast");
- const [savedScenarios, setSavedScenarios] = useState([
-  // Demo saved scenarios
-  { id: 1, name: "Scenario Conservativo", utility: "energia", date: "2026-01-15 09:30", priceAdj: -10, consumoAdj: 5, oneriAdj: 0, totScenario: 468200, totBase: 502100, delta: -33900, months: Array.from({length:12}, (_,m) => ({ name: MONTHS[m], scenario: 35000 + Math.round(Math.random()*10000), base: 38000 + Math.round(Math.random()*10000) })) },
-  { id: 2, name: "Rincaro Gas Q4", utility: "gas", date: "2026-01-20 14:15", priceAdj: 25, consumoAdj: 0, oneriAdj: 5, totScenario: 245800, totBase: 198400, delta: 47400, months: Array.from({length:12}, (_,m) => ({ name: MONTHS[m], scenario: 18000 + Math.round(Math.random()*8000), base: 15000 + Math.round(Math.random()*6000) })) },
-  { id: 3, name: "Efficienza Energetica", utility: "energia", date: "2026-02-05 11:00", priceAdj: 0, consumoAdj: -15, oneriAdj: -5, totScenario: 412500, totBase: 502100, delta: -89600, months: Array.from({length:12}, (_,m) => ({ name: MONTHS[m], scenario: 30000 + Math.round(Math.random()*9000), base: 38000 + Math.round(Math.random()*10000) })) },
- ]);
+ const [savedScenarios, setSavedScenarios] = useState([]);
 
  const handleSaveScenario = (scenario) => {
   setSavedScenarios(prev => [{ ...scenario, id: Date.now(), date: new Date().toLocaleString("it-IT", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) }, ...prev]);
